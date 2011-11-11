@@ -1,0 +1,13 @@
+// $Id$
+// vim:ft=javascript
+
+// If your extension references something external, use ARG_WITH
+// ARG_WITH("odus", "for odus support", "no");
+
+// Otherwise, use ARG_ENABLE
+// ARG_ENABLE("odus", "enable odus support", "no");
+
+if (PHP_ODUS != "no") {
+	EXTENSION("odus", "odus.c");
+}
+

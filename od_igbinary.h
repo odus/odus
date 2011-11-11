@@ -1,0 +1,176 @@
+#ifndef _OD_IGBINARY_H_
+#define _OD_IGBINARY_H_
+
+#include <inttypes.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <sys/types.h>
+
+#include "hash.h"
+
+/** Backport macros from php 5.3 */
+#ifndef Z_ISREF_P
+#define Z_ISREF_P(pz)                  PZVAL_IS_REF(pz)
+#endif
+
+#ifndef Z_ISREF_PP
+#define Z_ISREF_PP(ppz)                Z_ISREF_P(*(ppz))
+#endif
+
+#ifndef Z_SET_ISREF_TO_P
+#define Z_SET_ISREF_TO_P(pz, isref)    (Z_ISREF_P(pz) = (isref))
+#endif
+
+#ifndef Z_SET_ISREF_TO_PP
+#define Z_SET_ISREF_TO_PP(ppz, isref)  Z_SET_ISREF_TO_P(*(ppz), isref)
+#endif
+
+#ifndef Z_ADDREF_P
+#define Z_ADDREF_P(pz)                 ZVAL_ADDREF(pz)
+#endif
+
+#ifndef Z_ADDREF_PP
+#define Z_ADDREF_PP(ppz)               Z_ADDREF_P(*(ppz))
+#endif
+
+//XXX
+//must be 4
+#define OD_IGBINARY_VALUE_LEN_SIZE 4
+
+/* {{{ Types */
+typedef enum od_igbinary_type_e {
+	/* 00 */ od_igbinary_type_null,			/**< Null. */
+
+	/* 01 */ od_igbinary_type_ref8,			/**< Array reference. */
+	/* 02 */ od_igbinary_type_ref16,			/**< Array reference. */
+	/* 03 */ od_igbinary_type_ref32,			/**< Array reference. */
+
+	/* 04 */ od_igbinary_type_bool_false,		/**< Boolean true. */
+	/* 05 */ od_igbinary_type_bool_true,		/**< Boolean false. */
+
+	/* 06 */ od_igbinary_type_long8p,			/**< Long 8bit positive. */
+	/* 07 */ od_igbinary_type_long8n,			/**< Long 8bit negative. */
+	/* 08 */ od_igbinary_type_long16p,			/**< Long 16bit positive. */
+	/* 09 */ od_igbinary_type_long16n,			/**< Long 16bit negative. */
+	/* 0a */ od_igbinary_type_long32p,			/**< Long 32bit positive. */
+	/* 0b */ od_igbinary_type_long32n,			/**< Long 32bit negative. */
+
+	/* 0c */ od_igbinary_type_double,			/**< Double. */
+
+	/* 0d */ od_igbinary_type_string_empty,	/**< Empty string. */
+
+	/* 0e */ od_igbinary_type_string_id8,		/**< String id. */
+	/* 0f */ od_igbinary_type_string_id16,		/**< String id. */
+	/* 10 */ od_igbinary_type_string_id32,		/**< String id. */
+
+	/* 11 */ od_igbinary_type_string8,			/**< String. */
+	/* 12 */ od_igbinary_type_string16,		/**< String. */
+	/* 13 */ od_igbinary_type_string32,		/**< String. */
+
+	/* 14 */ od_igbinary_type_array8,			/**< Array. */
+	/* 15 */ od_igbinary_type_array16,			/**< Array. */
+	/* 16 */ od_igbinary_type_array32,			/**< Array. */
+
+	/* 17 */ od_igbinary_type_object8,			/**< Object. */
+	/* 18 */ od_igbinary_type_object16,		/**< Object. */
+	/* 19 */ od_igbinary_type_object32,		/**< Object. */
+
+	/* 1a */ od_igbinary_type_object_id8,		/**< Object string id. */
+	/* 1b */ od_igbinary_type_object_id16,		/**< Object string id. */
+	/* 1c */ od_igbinary_type_object_id32,		/**< Object string id. */
+
+	/* 1d */ od_igbinary_type_object_ser8,		/**< Object serialized data. */
+	/* 1e */ od_igbinary_type_object_ser16,	/**< Object serialized data. */
+	/* 1f */ od_igbinary_type_object_ser32,	/**< Object serialized data. */
+
+	/* 20 */ od_igbinary_type_long64p,			/**< Long 64bit positive. */
+	/* 21 */ od_igbinary_type_long64n,			/**< Long 64bit negative. */
+
+	/* 22 */ od_igbinary_type_objref8,			/**< Object reference. */
+	/* 23 */ od_igbinary_type_objref16,		/**< Object reference. */
+	/* 24 */ od_igbinary_type_objref32,		/**< Object reference. */
+
+	/* 25 */ od_igbinary_type_ref,				/**< Simple reference */
+} od_igbinary_type;
+
+/** Serializer data.
+ * @author Oleg Grenrus <oleg.grenrus@dynamoid.com>
+ */
+typedef struct od_igbinary_serialize_data_s {
+	uint8_t *buffer;			/**< Buffer. */
+	size_t buffer_size;			/**< Buffer size. */
+	size_t buffer_capacity;		/**< Buffer capacity. */
+	bool scalar;				/**< Serializing scalar. */
+
+	struct hash_si objects;		/**< Hash of already serialized objects. */
+}od_igbinary_serialize_data;
+
+/** String/len pair for the od_igbinary_unserializer_data.
+ * @author Oleg Grenrus <oleg.grenrus@dynamoid.com>
+ * @see od_igbinary_unserialize_data.
+ */
+//struct od_igbinary_unserialize_string_pair {
+	//char *data;		/**< Data. */
+	//size_t len;		/**< Data length. */
+//};
+
+/** Unserializer data.
+ * @author Oleg Grenrus <oleg.grenrus@dynamoid.com>
+ */
+typedef struct od_igbinary_unserialize_data_s {
+	uint8_t *buffer;				/**< Buffer. */
+	size_t buffer_size;				/**< Buffer size. */
+	size_t buffer_offset;			/**< Current read offset. */
+} od_igbinary_unserialize_data;
+/* }}} */
+
+inline int od_igbinary_unserialize_chararray(od_igbinary_unserialize_data *igsd, od_igbinary_type t, char **s, size_t *len TSRMLS_DC);
+inline int od_igbinary_unserialize_long(od_igbinary_unserialize_data *igsd, od_igbinary_type t, long *ret TSRMLS_DC);
+inline int od_igbinary_unserialize_double(od_igbinary_unserialize_data *igsd, od_igbinary_type t, double *ret TSRMLS_DC);
+
+inline size_t od_igbinary_get_value_len(od_igbinary_unserialize_data *igsd);
+
+inline int od_igbinary_skip_value_len(od_igbinary_unserialize_data *igsd);
+
+inline size_t od_igbinary_get_member_num(od_igbinary_unserialize_data *igsd, od_igbinary_type t);
+
+inline int od_igbinary_serialize8(od_igbinary_serialize_data *igsd, uint8_t i TSRMLS_DC);
+inline int od_igbinary_serialize16(od_igbinary_serialize_data *igsd, uint16_t i TSRMLS_DC);
+inline int od_igbinary_serialize32(od_igbinary_serialize_data *igsd, uint32_t i TSRMLS_DC);
+
+inline int od_igbinary_unserialize_get_key(od_igbinary_unserialize_data *igsd, char** key_p, size_t* key_len_p, long* key_index_p);
+
+int od_igbinary_unserialize_zval(od_igbinary_unserialize_data *igsd, zval **z TSRMLS_DC);
+
+inline int od_igbinary_unserialize_header(od_igbinary_unserialize_data *igsd TSRMLS_DC);
+
+inline od_igbinary_type od_igbinary_get_type(od_igbinary_unserialize_data *igsd);
+
+inline void od_igbinary_serialize_append_zero(od_igbinary_serialize_data *igsd);
+
+inline int od_igbinary_serialize_memcpy(od_igbinary_serialize_data *igsd, uint8_t* s, size_t len);
+
+inline int od_igbinary_serialize_skip_n(od_igbinary_serialize_data *igsd, int n TSRMLS_DC);
+
+inline int od_igbinary_unserialize_skip_key(od_igbinary_unserialize_data *igsd);
+
+inline int od_igbinary_serialize_value_len(od_igbinary_serialize_data *igsd, size_t len, size_t pos TSRMLS_DC);
+
+inline int od_igbinary_serialize_array(od_igbinary_serialize_data *igsd, zval *z, bool object, bool incomplete_class, bool in_od_serialize TSRMLS_DC);
+
+int od_igbinary_serialize_zval(od_igbinary_serialize_data *igsd, zval *z TSRMLS_DC);
+
+inline int od_igbinary_serialize_value_len(od_igbinary_serialize_data *igsd, size_t len, size_t pos TSRMLS_DC);
+
+inline int od_igbinary_serialize_data_init(od_igbinary_serialize_data *igsd, bool scalar TSRMLS_DC);
+
+inline void od_igbinary_serialize_data_deinit(od_igbinary_serialize_data *igsd TSRMLS_DC);
+
+inline int od_igbinary_serialize_header(od_igbinary_serialize_data *igsd TSRMLS_DC);
+
+inline int od_igbinary_serialize_long(od_igbinary_serialize_data *igsd, long l TSRMLS_DC);
+
+inline int od_igbinary_serialize_string(od_igbinary_serialize_data *igsd, char *s, size_t len TSRMLS_DC);
+
+#endif

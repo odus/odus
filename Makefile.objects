@@ -1,0 +1,18 @@
+odus.lo: /home/xma/work/php/extension/odus/odus.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/home/xma/work/php/extension/odus $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /home/xma/work/php/extension/odus/odus.c -o odus.lo 
+odwrapper.lo: /home/xma/work/php/extension/odus/odwrapper.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/home/xma/work/php/extension/odus $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /home/xma/work/php/extension/odus/odwrapper.c -o odwrapper.lo 
+hash_si.lo: /home/xma/work/php/extension/odus/hash_si.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/home/xma/work/php/extension/odus $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /home/xma/work/php/extension/odus/hash_si.c -o hash_si.lo 
+hash_function.lo: /home/xma/work/php/extension/odus/hash_function.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/home/xma/work/php/extension/odus $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /home/xma/work/php/extension/odus/hash_function.c -o hash_function.lo 
+od_igbinary.lo: /home/xma/work/php/extension/odus/od_igbinary.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/home/xma/work/php/extension/odus $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /home/xma/work/php/extension/odus/od_igbinary.c -o od_igbinary.lo 
+od_debug.lo: /home/xma/work/php/extension/odus/od_debug.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/home/xma/work/php/extension/odus $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /home/xma/work/php/extension/odus/od_debug.c -o od_debug.lo 
+$(phplibdir)/odus.la: ./odus.la
+	$(LIBTOOL) --mode=install cp ./odus.la $(phplibdir)
+
+./odus.la: $(shared_objects_odus) $(ODUS_SHARED_DEPENDENCIES)
+	$(LIBTOOL) --mode=link $(CC) $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS) $(LDFLAGS) -o $@ -export-dynamic -avoid-version -prefer-pic -module -rpath $(phplibdir) $(EXTRA_LDFLAGS) $(shared_objects_odus) $(ODUS_SHARED_LIBADD)
+
