@@ -59,5 +59,5 @@ if test "$PHP_ODUS" != "no"; then
   dnl
   dnl PHP_SUBST(ODUS_SHARED_LIBADD)
 
-  PHP_NEW_EXTENSION(odus, odus.c odwrapper.c hash_si.c hash_function.c od_igbinary.c od_debug.c, $ext_shared)
+  PHP_NEW_EXTENSION(odus, odus.c odwrapper.c od_hash.c hash_si.c hash_function.c od_igbinary.c od_debug.c, $ext_shared)
 fi

@@ -9,6 +9,7 @@
 #include "php_odus.h"
 
 #include "odwrapper.h"
+#include "od_hash.h"
 #include "ext/standard/php_incomplete_class.h"
 
 //FIXME
@@ -59,43 +60,15 @@ zend_module_entry odus_module_entry = {
 ZEND_GET_MODULE(odus)
 #endif
 
-void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, zend_uchar is_root);
+void apply_sleep_array(od_wrapper_object* od_obj, HashTable* h);
+
+void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, uint8_t is_root);
 
 extern zend_object_handlers od_wrapper_object_handlers;
 
-extern void jump_member_key(char** pos_p);
-extern int check_od_wrapper_ob_status(zval* obj);
-extern void od_wrapper_hash_apply_with_argument(HashTable *ht, apply_func_arg_t apply_func, void *argument TSRMLS_DC);
+extern uint8_t is_od_wrapper_obj_modified(zval* obj,uint8_t has_sleep, int* member_num_diff);
 
-//FIXME
-// to be removed
- inline ulong my_inline_hash_func(char *arKey, uint nKeyLength)
-{
-	register ulong hash = 5381;
-
-	/* variant with the hash unrolled eight times */
-	for (; nKeyLength >= 8; nKeyLength -= 8) {
-		hash = ((hash << 5) + hash) + *arKey++;
-		hash = ((hash << 5) + hash) + *arKey++;
-		hash = ((hash << 5) + hash) + *arKey++;
-		hash = ((hash << 5) + hash) + *arKey++;
-		hash = ((hash << 5) + hash) + *arKey++;
-		hash = ((hash << 5) + hash) + *arKey++;
-		hash = ((hash << 5) + hash) + *arKey++;
-		hash = ((hash << 5) + hash) + *arKey++;
-	}
-	switch (nKeyLength) {
-		case 7: hash = ((hash << 5) + hash) + *arKey++; /* fallthrough... */
-		case 6: hash = ((hash << 5) + hash) + *arKey++; /* fallthrough... */
-		case 5: hash = ((hash << 5) + hash) + *arKey++; /* fallthrough... */
-		case 4: hash = ((hash << 5) + hash) + *arKey++; /* fallthrough... */
-		case 3: hash = ((hash << 5) + hash) + *arKey++; /* fallthrough... */
-		case 2: hash = ((hash << 5) + hash) + *arKey++; /* fallthrough... */
-		case 1: hash = ((hash << 5) + hash) + *arKey++; break;
-		case 0: break;
-	}
-	return hash;
-}
+extern void search_member(od_wrapper_object* od_obj, const char* member_name, uint32_t member_len, uint32_t hash, ODBucket** ret_bkt, member_pos* ret_pos);
 
 void od_overwrite_function(char* old, char* new) {
 	if(EG(function_table)==NULL || old==NULL || new==NULL) return;
@@ -196,22 +169,6 @@ PHP_MINFO_FUNCTION(odus)
 }
 /* }}} */
 
-int od_wrapper_remove_for_sleep(void* bkt, void* arg)
-{
-	assert(arg);
-
-	if(!bkt || !arg) {
-		return ZEND_HASH_APPLY_REMOVE;
-	}
-
-	Bucket* p = (Bucket*)bkt;
-
-	HashTable** p_ht = (HashTable**)arg;
-
-	//keep unset property
-	return (p->pDataPtr==NULL || zend_hash_quick_exists(*p_ht, p->arKey, p->nKeyLength, p->h))?ZEND_HASH_APPLY_KEEP:ZEND_HASH_APPLY_REMOVE;
-}
-
 void normal_php_serialize(smart_str* buf, zval* obj)
 {
 	if(buf==NULL || obj==NULL) return;
@@ -223,7 +180,7 @@ void normal_php_serialize(smart_str* buf, zval* obj)
 	PHP_VAR_SERIALIZE_DESTROY(var_hash);
 }
 
-inline void deal_with_unmodified_object(od_igbinary_serialize_data* igsd, od_wrapper_object* od_obj, zend_uchar is_root)
+inline void deal_with_unmodified_object(od_igbinary_serialize_data* igsd, od_wrapper_object* od_obj, uint8_t is_root)
 {
 	if(is_root) {
 		igsd->scalar = 1;
@@ -241,24 +198,57 @@ inline void deal_with_unmodified_object(od_igbinary_serialize_data* igsd, od_wra
 	}
 }
 
-HashTable* flip_sleep_array_hash(HashTable* h, zend_class_entry* ce) {
+uint8_t check_sleep(zval* obj, od_wrapper_object* od_obj) {
 
-	if(!h) return NULL;
+	uint8_t has_sleep = 0;
 
-	HashTable* flip_h;
-	ALLOC_HASHTABLE(flip_h);
+	if(obj && od_obj && od_obj->zo.ce && od_obj->zo.ce != PHP_IC_ENTRY && zend_hash_exists(&od_obj->zo.ce->function_table, "__sleep", sizeof("__sleep"))) {
 
-	zend_hash_init(flip_h, h->nNumOfElements, NULL, NULL, 0);
+		/* function name string */
+		zval f;
+		zval* h = NULL;
+		HashTable* flip_h = NULL;
+
+		INIT_PZVAL(&f);
+		ZVAL_STRINGL(&f, "__sleep", sizeof("__sleep") - 1, 0);
+
+		if (call_user_function_ex(CG(function_table), &obj, &f, &h, 0, 0, 1, NULL TSRMLS_CC) == SUCCESS && !EG(exception)) {
+
+			if (h) {
+				if (Z_TYPE_P(h) == IS_ARRAY) {
+
+					has_sleep = 1;
+
+					apply_sleep_array(od_obj,Z_ARRVAL_P(h));
+				} else {
+					od_error(E_NOTICE, "__sleep should return an array only "
+							"containing the names of instance-variables to "
+							"serialize");
+				}
+			}
+		}
+
+		/* cleanup */
+		if (h) {
+			zval_ptr_dtor(&h);
+		}
+	}
+
+	return has_sleep;
+}
+
+void apply_sleep_array(od_wrapper_object* od_obj, HashTable* h) {
+
+	if(!h || !od_obj) return;
 
 	Bucket* p = h->pListHead;
 
 	zval* data = NULL;
 
-	void* value = NULL;
+	ODBucket* bkt = NULL;
 
-	//zend_hash_quick_find(&ce->properties_info, Z_STRVAL_P(member), Z_STRLEN_P(member)+1, h, (void **) &property_info)==SUCCESS
-
-	ulong hash;
+	ulong p_hash;
+	uint32_t o_hash;
 
 	zend_property_info *property_info = NULL;
 
@@ -271,28 +261,142 @@ HashTable* flip_sleep_array_hash(HashTable* h, zend_class_entry* ce) {
 				od_error(E_ERROR,"item of sleep array must be string type");
 			} else {
 
-				hash = zend_get_hash_value(Z_STRVAL_P(data),Z_STRLEN_P(data)+1);
+				p_hash = zend_get_hash_value(Z_STRVAL_P(data),Z_STRLEN_P(data)+1);
+				o_hash = OD_HASH_VALUE(p_hash);
 
-				if(zend_hash_quick_find(&ce->properties_info,Z_STRVAL_P(data),Z_STRLEN_P(data)+1, hash, (void **) &property_info)==SUCCESS) {
-					zend_hash_quick_add(flip_h,property_info->name,property_info->name_length+1,property_info->h,&value,sizeof(void*),NULL);
+				if(od_hash_find(od_obj->od_properties,Z_STRVAL_P(data),Z_STRLEN_P(data),o_hash,&bkt)==SUCCESS) {
+					if(bkt) {
+						OD_SET_SLEEP(*bkt);
+					}
 				} else {
-					zend_hash_quick_add(flip_h,Z_STRVAL_P(data),Z_STRLEN_P(data)+1,hash,&value,sizeof(void*),NULL);
+					if(zend_hash_quick_find(&(od_obj->zo.ce->properties_info),Z_STRVAL_P(data),Z_STRLEN_P(data)+1, p_hash, (void **) &property_info)==SUCCESS) {
+						if(od_hash_find(od_obj->od_properties,property_info->name,property_info->name_length,OD_HASH_VALUE(property_info->h),&bkt)==SUCCESS) {
+							if(bkt) {
+								OD_SET_SLEEP(*bkt);
+							}
+						}
+					}
 				}
 			}
 		}
 
 		p = p->pListNext;
 	}
-
-	return flip_h;
 }
 
-void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, zend_uchar is_root)
-{
+void deal_with_new_properties(od_wrapper_object* od_obj, od_igbinary_serialize_data* igsd, uint8_t has_sleep) {
+
+	uint32_t i;
+	ODHashTable* ht = od_obj->od_properties;
+	ODBucket* bkt = NULL;
+
+	for(i=0;i<ht->size;i++) {
+		bkt=ht->buckets+i;
+
+		if(OD_IS_OCCUPIED(*bkt) && OD_IS_NEW(*bkt) && bkt->data!=NULL && (!has_sleep || OD_IS_SLEEP(*bkt))) {
+
+			debug("key %s is new for class %s", bkt->key?bkt->key:"null", OD_CLASS_NAME(od_obj));
+
+			if(bkt->key_len == 0) {
+				od_igbinary_serialize_long(igsd, bkt->hash);
+			} else {
+				od_igbinary_serialize_string(igsd, bkt->key, bkt->key_len);
+			}
+
+			normal_od_wrapper_serialize(igsd, (zval*)bkt->data,0);
+		}
+	}
+}
+
+void deal_with_modified_properties(od_wrapper_object* od_obj, od_igbinary_serialize_data* igsd, od_igbinary_unserialize_data* local_igsd, uint8_t has_sleep) {
+
+	uint32_t i;
+	ODHashTable* ht = od_obj->od_properties;
+	ODBucket* bkt = NULL;
+
+	uint32_t modified_num = 0;
+
+	for(i=0;i<ht->size;i++) {
+		bkt=ht->buckets+i;
+
+		if(OD_IS_OCCUPIED(*bkt) && !OD_IS_NEW(*bkt) && OD_IS_MODIFIED(*bkt)) {
+
+			debug("key %s is modified for class %s", bkt->key?bkt->key:"null", OD_CLASS_NAME(od_obj));
+
+			modified_num ++ ;
+		}
+	}
+
+	if(modified_num>0) {
+		uint32_t idx=0;
+
+		member_pos* pos_info = (member_pos*)emalloc(modified_num*sizeof(member_pos));
+
+		if(pos_info) {
+			for(i=0;i<ht->size;i++) {
+				bkt=ht->buckets+i;
+
+				if(OD_IS_OCCUPIED(*bkt) && !OD_IS_NEW(*bkt) && OD_IS_MODIFIED(*bkt)) {
+					search_member(od_obj,bkt->key,bkt->key_len,bkt->hash,NULL,pos_info+idx);
+
+					if(has_sleep && !OD_IS_SLEEP(*bkt)){
+						pos_info[idx].data = NULL;
+					} else {
+						pos_info[idx].data = (zval*)bkt->data;
+					}
+
+					idx++;
+				}
+			}
+
+			//need quick sort pos_info
+			//just use select sort now
+			uint32_t k,j;
+
+			member_pos tmp_pos;
+
+			for(i=0;i<modified_num;i++) {
+				k=i;
+				for(j=i+1;j<modified_num;j++) {
+					if(pos_info[j].key_start_offset < pos_info[k].key_start_offset){
+						k=j;
+					}
+				}
+
+				if(k!=i){
+					tmp_pos = pos_info[k];
+					pos_info[k] = pos_info[i];
+					pos_info[i] = tmp_pos;
+				}
+			}
+
+			//now serialize these modified properties
+
+			for(i=0;i<modified_num;i++) {
+				if(pos_info[i].data==NULL) {
+					od_igbinary_serialize_memcpy(igsd, OD_LOCAL_OFFSET_POS(*local_igsd), pos_info[i].key_start_offset - local_igsd->buffer_offset);
+				} else {
+
+					od_igbinary_serialize_memcpy(igsd, OD_LOCAL_OFFSET_POS(*local_igsd), pos_info[i].val_start_offset - local_igsd->buffer_offset);
+					//serialize value
+					normal_od_wrapper_serialize(igsd,pos_info[i].data,0);
+				}
+
+				local_igsd->buffer_offset = pos_info[i].val_end_offset;
+			}
+		}
+	}
+
+	od_igbinary_serialize_memcpy(igsd, OD_LOCAL_OFFSET_POS(*local_igsd), local_igsd->buffer_size - local_igsd->buffer_offset);
+}
+
+void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, uint8_t is_root) {
 	if(obj==NULL) {
 		od_error(E_ERROR, "obj could not be NULL here");
 		return;
 	}
+
+	debug("in %s",__FUNCTION__);
 
 	od_wrapper_object* od_obj = NULL;
 
@@ -309,78 +413,28 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ze
 		}
 	}else{
 
-		if(is_root) {
-			check_od_wrapper_ob_status(obj);
-		}
+		uint8_t modified = 0;
+		int num_diff = 0;
 
-		if(OD_HASH_NUM(od_obj->modified_properties)==0){
+		modified = is_od_wrapper_obj_modified(obj, 0, &num_diff);
 
+		debug("od_serialize: class '%s' is %s modified",OD_CLASS_NAME(od_obj),modified?"":"not");
+
+		if(!modified){
 			deal_with_unmodified_object(igsd, od_obj, is_root);
-
 			return;
 		}else{
 
-			if(od_obj->zo.ce && od_obj->zo.ce != PHP_IC_ENTRY && zend_hash_exists(&od_obj->zo.ce->function_table, "__sleep", sizeof("__sleep"))) {
+			uint8_t has_sleep = check_sleep(obj, od_obj);
 
-				/* function name string */
-				zval f;
-				zval* h = NULL;
-				HashTable* flip_h = NULL;
+			if(has_sleep) {
+				modified = is_od_wrapper_obj_modified(obj,1,&num_diff);
 
-				INIT_PZVAL(&f);
-				ZVAL_STRINGL(&f, "__sleep", sizeof("__sleep") - 1, 0);
-
-				if (call_user_function_ex(CG(function_table), &obj, &f, &h, 0, 0, 1, NULL TSRMLS_CC) == SUCCESS && !EG(exception)) {
-
-					if (h) {
-						if (Z_TYPE_P(h) == IS_ARRAY) {
-
-							//FIXME
-							debug("modified properties before sleep");
-							print_ht(od_obj->modified_properties);
-
-							flip_h = flip_sleep_array_hash(Z_ARRVAL_P(h),od_obj->zo.ce);
-
-							debug("sleep array for class %s",OD_CLASS_NAME(od_obj));
-							print_ht(flip_h);
-
-							od_wrapper_hash_apply_with_argument(od_obj->modified_properties,od_wrapper_remove_for_sleep,&flip_h);
-
-							debug("modified properties after sleep");
-							print_ht(od_obj->modified_properties);
-
-						} else {
-							od_error(E_NOTICE, "__sleep should return an array only "
-									"containing the names of instance-variables to "
-									"serialize");
-						}
-					}
-				}
-
-				/* cleanup */
-				if (h) {
-					zval_ptr_dtor(&h);
-				}
-
-				if(flip_h) {
-					zend_hash_destroy(flip_h);
-					FREE_HASHTABLE(flip_h);
+				if(!modified) {
+					deal_with_unmodified_object(igsd, od_obj, is_root);
+					return;
 				}
 			}
-
-			//debug("pos info for class %s",OD_CLASS_NAME(od_obj));
-			//print_ht(od_obj->pos_info);
-
-			debug("obj info for class %s",OD_CLASS_NAME(od_obj));
-			print_ht(od_obj->obj_properties);
-
-			debug("modified info for class %s (modified num: %d)",OD_CLASS_NAME(od_obj),OD_HASH_NUM(od_obj->modified_properties));
-
-			print_ht(od_obj->modified_properties);
-
-			//debug("property info for class %s",OD_CLASS_NAME(od_obj));
-			//print_ht(od_obj->zo.properties);
-
 
 			if(is_root) {
 				//We need do necessary initialization
@@ -405,58 +459,33 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ze
 
 			}
 
-			debug("deal with changed part of object %s",OD_CLASS_NAME(od_obj));
+			debug("deal with changed part of object %s, num_diff: %d",OD_CLASS_NAME(od_obj), num_diff);
 
 			od_igbinary_unserialize_data local_igsd = od_obj->igsd;
 			local_igsd.buffer_offset = 0;
 
 			char* class_name;
-			size_t class_name_len;
+			uint32_t class_name_len;
 
 			od_igbinary_unserialize_chararray(&local_igsd, od_igbinary_get_type(&local_igsd), &class_name, &class_name_len);
 
 			//XXX
 			//this position will not changed
-			size_t local_array_info_offset = local_igsd.buffer_offset;
+			uint32_t local_array_info_offset = local_igsd.buffer_offset;
 
 			int member_num = od_igbinary_get_member_num(&local_igsd,od_igbinary_get_type(&local_igsd));
 
 			//XXX
 			//this position may be changed latter
-			size_t local_len_info_offset = local_igsd.buffer_offset;
+			uint32_t local_len_info_offset = local_igsd.buffer_offset;
 
 			od_igbinary_skip_value_len(&local_igsd);
 
-			// get number of unset properties
-			int diff_num = 0;
+			if(num_diff !=0) {
 
-			debug("number of modified properties: %d",OD_HASH_NUM(od_obj->modified_properties));
+				debug("diff num: %d",num_diff);
 
-			Bucket* p = NULL;
-
-			p = od_obj->modified_properties->pListHead;
-
-			while(p!=NULL) {
-
-				if(!od_obj->pos_info || !zend_hash_quick_exists(od_obj->pos_info, p->arKey, p->nKeyLength, p->h)) {
-					// new property
-					if(p->pDataPtr != NULL) {
-						diff_num ++;
-					}
-				} else {
-					if(p->pDataPtr == NULL) {
-						diff_num --;
-					}
-				}
-
-				p = p->pListNext;
-			}
-
-			if(diff_num !=0) {
-
-				debug("diff num: %d",diff_num);
-
-				int new_member_num = member_num + diff_num;
+				int new_member_num = member_num + num_diff;
 
 				if(new_member_num == member_num) {
 					od_igbinary_serialize_memcpy(igsd,local_igsd.buffer, local_len_info_offset);
@@ -483,89 +512,17 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ze
 				od_igbinary_serialize_memcpy(igsd,local_igsd.buffer, local_len_info_offset);
 			}
 
-			size_t g_len_info_pos = igsd->buffer_size;
+			uint32_t g_len_info_pos = igsd->buffer_size;
 
 			od_igbinary_serialize_skip_n(igsd,OD_IGBINARY_VALUE_LEN_SIZE);
 
+			debug("deal with modified properties for class %s",OD_CLASS_NAME(od_obj));
 
-			int modified_num = OD_HASH_NUM(od_obj->modified_properties);
-			int check_num = 0;
-
-			debug("deal with modified properties");
-
-			p = od_obj->pos_info?od_obj->pos_info->pListHead:NULL;
-
-			while(p!=NULL) {
-
-				zval*** data_p = NULL;
-
-				if(zend_hash_quick_find(od_obj->modified_properties,p->arKey,p->nKeyLength,p->h,(void**)&data_p)==SUCCESS) {
-
-					od_pos* pos = *(od_pos**)p->pData;
-
-					if(data_p != NULL && *data_p != NULL) {
-
-						debug("find pos info for modified key '%s' data_p: %p for class %s",p->arKey, **data_p, OD_CLASS_NAME(od_obj));
-
-						od_igbinary_serialize_memcpy(igsd, OD_LOCAL_OFFSET_POS(local_igsd), OD_LOCAL_OFFSET_LEN(local_igsd, pos->key_start));
-
-						local_igsd.buffer_offset = pos->key_start - local_igsd.buffer;
-						size_t tmp_pos = local_igsd.buffer_offset;
-						od_igbinary_unserialize_skip_key(&local_igsd);
-
-						//copy key
-						od_igbinary_serialize_memcpy(igsd, pos->key_start, local_igsd.buffer_offset - tmp_pos);
-
-						//serialize value
-						normal_od_wrapper_serialize(igsd,**data_p,0);
-
-						local_igsd.buffer_offset = pos->value_end - local_igsd.buffer;
-					}
-					else {
-						debug("key '%s' is unset for class %s",p->arKey, OD_CLASS_NAME(od_obj));
-
-						od_igbinary_serialize_memcpy(igsd, OD_LOCAL_OFFSET_POS(local_igsd), OD_LOCAL_OFFSET_LEN(local_igsd, pos->key_start));
-
-						local_igsd.buffer_offset = pos->value_end - local_igsd.buffer;
-					}
-
-					check_num ++;
-
-					if(check_num >= modified_num) {
-						debug("break because check_num(%d) >= modified_num(%d) for class %s",check_num,modified_num,OD_CLASS_NAME(od_obj));
-						break;
-					}
-				}
-
-				p = p->pListNext;
-			}
-
-			od_igbinary_serialize_memcpy(igsd, OD_LOCAL_OFFSET_POS(local_igsd), local_igsd.buffer_size - local_igsd.buffer_offset);
-
-			// deal with new properties
+			deal_with_modified_properties(od_obj, igsd, &local_igsd, has_sleep);
 
 			debug("deal with new properties for class %s",OD_CLASS_NAME(od_obj));
 
-			p = od_obj->modified_properties->pListHead;
-
-			while(p!=NULL) {
-
-				if(!od_obj->pos_info || !zend_hash_quick_exists(od_obj->pos_info, p->arKey, p->nKeyLength, p->h)) {
-					if(p->pDataPtr != NULL) {
-
-						if(p->nKeyLength == 0) {
-							od_igbinary_serialize_long(igsd, p->h);
-						} else {
-							od_igbinary_serialize_string(igsd, p->arKey, p->nKeyLength-1);
-						}
-
-						normal_od_wrapper_serialize(igsd, **((zval***)p->pData),0);
-
-					}
-				}
-
-				p = p->pListNext;
-			}
+			deal_with_new_properties(od_obj, igsd, has_sleep);
 
 			//modify value len
 			od_igbinary_serialize_value_len(igsd, igsd->buffer_size - g_len_info_pos - OD_IGBINARY_VALUE_LEN_SIZE,g_len_info_pos);
@@ -592,15 +549,16 @@ PHP_FUNCTION(od_serialize)
 	Z_STRVAL_P(return_value) = NULL;
 	Z_STRLEN_P(return_value) = 0;
 
-	//debug("in od_serialize => file: %s function: %s line: %d",OD_FILE,OD_FUNCTION,OD_LINE);
-
 	od_igbinary_serialize_data igsd = {0};
 
 	if(IS_OD_WRAPPER(z)) {
 
+		debug("in od_serialize => file: %s function: %s line: %d",OD_FILE,OD_FUNCTION,OD_LINE);
+
 		normal_od_wrapper_serialize(&igsd,z,1);
 
 	} else {
+
 		if (od_igbinary_serialize_data_init(&igsd, Z_TYPE_P(z) != IS_OBJECT && Z_TYPE_P(z) != IS_ARRAY TSRMLS_CC)) {
 			od_error(E_ERROR, "od_igbinary_serialize: cannot init igsd");
 			RETURN_NULL();

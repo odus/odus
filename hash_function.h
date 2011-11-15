@@ -22,6 +22,6 @@
  * @see http://burtleburtle.net/bob/hash/index.html
  * @author Bob Jerkins <bob_jenkins@burtleburtle.net>
  */
-uint32_t hash_function(const void *key, size_t length, uint32_t initval);
+uint32_t hash_function(const void *key, uint32_t length, uint32_t initval);
 
 #endif /* HASH_FUNCTION_H */

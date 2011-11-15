@@ -1,7 +1,7 @@
-srcdir = /home/xma/work/php/extension/odus
-builddir = /home/xma/work/php/extension/odus
-top_srcdir = /home/xma/work/php/extension/odus
-top_builddir = /home/xma/work/php/extension/odus
+srcdir = /home/xma/work/svn/optimization/extension/odus
+builddir = /home/xma/work/svn/optimization/extension/odus
+top_srcdir = /home/xma/work/svn/optimization/extension/odus
+top_builddir = /home/xma/work/svn/optimization/extension/odus
 EGREP = grep -E
 SED = /bin/sed
 CONFIGURE_COMMAND = './configure' '--with-php-config=/home/xma/php/bin/php-config'
@@ -11,7 +11,7 @@ SHLIB_DL_SUFFIX_NAME = so
 ZEND_EXT_TYPE = zend_extension
 RE2C = exit 0;
 AWK = gawk
-shared_objects_odus = odus.lo odwrapper.lo hash_si.lo hash_function.lo od_igbinary.lo od_debug.lo
+shared_objects_odus = odus.lo odwrapper.lo od_hash.lo hash_si.lo hash_function.lo od_igbinary.lo od_debug.lo
 PHP_PECL_EXTENSION = odus
 PHP_MODULES = $(phplibdir)/odus.la
 PHP_ZEND_EX =
@@ -21,10 +21,10 @@ prefix = /home/xma/php
 exec_prefix = $(prefix)
 libdir = ${exec_prefix}/lib
 prefix = /home/xma/php
-phplibdir = /home/xma/work/php/extension/odus/modules
+phplibdir = /home/xma/work/svn/optimization/extension/odus/modules
 phpincludedir = /home/xma/php/include/php
 CC = cc
-CFLAGS = -g -O2 -Wall
+CFLAGS = -g -O2
 CFLAGS_CLEAN = $(CFLAGS)
 CPP = cc -E
 CPPFLAGS = -DHAVE_CONFIG_H
@@ -165,18 +165,20 @@ distclean: clean
 
 .PHONY: all clean install distclean test
 .NOEXPORT:
-odus.lo: /home/xma/work/php/extension/odus/odus.c
-	$(LIBTOOL) --mode=compile $(CC)  -I. -I/home/xma/work/php/extension/odus $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /home/xma/work/php/extension/odus/odus.c -o odus.lo 
-odwrapper.lo: /home/xma/work/php/extension/odus/odwrapper.c
-	$(LIBTOOL) --mode=compile $(CC)  -I. -I/home/xma/work/php/extension/odus $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /home/xma/work/php/extension/odus/odwrapper.c -o odwrapper.lo 
-hash_si.lo: /home/xma/work/php/extension/odus/hash_si.c
-	$(LIBTOOL) --mode=compile $(CC)  -I. -I/home/xma/work/php/extension/odus $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /home/xma/work/php/extension/odus/hash_si.c -o hash_si.lo 
-hash_function.lo: /home/xma/work/php/extension/odus/hash_function.c
-	$(LIBTOOL) --mode=compile $(CC)  -I. -I/home/xma/work/php/extension/odus $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /home/xma/work/php/extension/odus/hash_function.c -o hash_function.lo 
-od_igbinary.lo: /home/xma/work/php/extension/odus/od_igbinary.c
-	$(LIBTOOL) --mode=compile $(CC)  -I. -I/home/xma/work/php/extension/odus $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /home/xma/work/php/extension/odus/od_igbinary.c -o od_igbinary.lo 
-od_debug.lo: /home/xma/work/php/extension/odus/od_debug.c
-	$(LIBTOOL) --mode=compile $(CC)  -I. -I/home/xma/work/php/extension/odus $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /home/xma/work/php/extension/odus/od_debug.c -o od_debug.lo 
+odus.lo: /home/xma/work/svn/optimization/extension/odus/odus.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/home/xma/work/svn/optimization/extension/odus $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /home/xma/work/svn/optimization/extension/odus/odus.c -o odus.lo 
+odwrapper.lo: /home/xma/work/svn/optimization/extension/odus/odwrapper.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/home/xma/work/svn/optimization/extension/odus $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /home/xma/work/svn/optimization/extension/odus/odwrapper.c -o odwrapper.lo 
+od_hash.lo: /home/xma/work/svn/optimization/extension/odus/od_hash.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/home/xma/work/svn/optimization/extension/odus $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /home/xma/work/svn/optimization/extension/odus/od_hash.c -o od_hash.lo 
+hash_si.lo: /home/xma/work/svn/optimization/extension/odus/hash_si.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/home/xma/work/svn/optimization/extension/odus $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /home/xma/work/svn/optimization/extension/odus/hash_si.c -o hash_si.lo 
+hash_function.lo: /home/xma/work/svn/optimization/extension/odus/hash_function.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/home/xma/work/svn/optimization/extension/odus $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /home/xma/work/svn/optimization/extension/odus/hash_function.c -o hash_function.lo 
+od_igbinary.lo: /home/xma/work/svn/optimization/extension/odus/od_igbinary.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/home/xma/work/svn/optimization/extension/odus $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /home/xma/work/svn/optimization/extension/odus/od_igbinary.c -o od_igbinary.lo 
+od_debug.lo: /home/xma/work/svn/optimization/extension/odus/od_debug.c
+	$(LIBTOOL) --mode=compile $(CC)  -I. -I/home/xma/work/svn/optimization/extension/odus $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS)  -c /home/xma/work/svn/optimization/extension/odus/od_debug.c -o od_debug.lo 
 $(phplibdir)/odus.la: ./odus.la
 	$(LIBTOOL) --mode=install cp ./odus.la $(phplibdir)
 

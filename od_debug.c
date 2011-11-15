@@ -31,8 +31,8 @@ struct timeval tp = {0};
 double start=0;
 double prev=0;
 
-size_t start_peak=0;
-size_t prev_peak=0;
+uint32_t start_peak=0;
+uint32_t prev_peak=0;
 
 double get_time() 
 {
@@ -44,7 +44,7 @@ double get_time()
 }
 
 
-void debug_buffer(uint8_t* buffer, size_t len, size_t pos)
+void debug_buffer(uint8_t* buffer, uint32_t len, uint32_t pos)
 {
 	//FIXME
 	//return;
@@ -63,7 +63,7 @@ void debug_buffer(uint8_t* buffer, size_t len, size_t pos)
 
 	fwrite(buffer,1,len,fp);
 
-	size_t i;
+	uint32_t i;
 
 	for(i=0;i<padding_num;i++) {
 		fwrite(&c,1,1,fp);
@@ -106,7 +106,7 @@ void debug_mem(char* format, ...)
 
 	va_end(args);
 
-	size_t current_peak = zend_memory_peak_usage(1);
+	uint32_t current_peak = zend_memory_peak_usage(1);
 
 	if(start_peak<1) {
 		start_peak = current_peak;
@@ -136,6 +136,22 @@ void debug(char* format, ...)
 	}
 
 	prev = current;
+
+
+	uint32_t current_peak = zend_memory_peak_usage(1);
+
+	if(start_peak<1) {
+		start_peak = current_peak;
+	} else {
+#if OD_DEBUG_MEM
+		if(current_peak != prev_peak) {
+			fprintf(stderr, "\t\t[ till now memory: %u (%.3fM)",current_peak - start_peak,(current_peak - start_peak)/(1024.0*1024.0));
+			fprintf(stderr, " this time memory: %u  (%.3fM)]\n",current_peak - prev_peak,(current_peak - prev_peak)/(1024.0*1024.0));
+		}
+#endif
+	}
+
+	prev_peak = current_peak;
 
 	char* client="cli";
 
@@ -334,7 +350,7 @@ void print_zval(zval* val) {
 	PHP_VAR_SERIALIZE_DESTROY(var_hash);
 
 	if (buf.c) {
-		size_t i;
+		uint32_t i;
 		for(i=0; i<buf.len; i++) {
 			if(buf.c[i]=='\0') buf.c[i]='0';
 		}

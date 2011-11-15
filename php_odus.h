@@ -2,6 +2,8 @@
 #ifndef PHP_ODUS_H
 #define PHP_ODUS_H
 
+#include "od_def.h"
+
 extern zend_module_entry odus_module_entry;
 #define phpext_odus_ptr &odus_module_entry
 
@@ -28,10 +30,11 @@ PHP_FUNCTION(od_unserialize);
 PHP_FUNCTION(od_overwrite_function);
 
 /** Binary protocol version of igbinary. */
-#define OD_IGBINARY_FORMAT_VERSION 0x10000001
+#define OD_IGBINARY_FORMAT_VERSION 0x4F440001 //OD01
 #define OD_IGBINARY_VERSION_BYTES  4
 #define OD_RESERVED_BUFFER_LEN 1024
 
+#define OD_VERSION "1.0.0"
 
 /* 
   	Declare any global variables you may need between the BEGIN

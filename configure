@@ -3461,7 +3461,7 @@ if test "$PHP_ODUS" != "no"; then
 
 
   old_IFS=$IFS
-  for ac_src in odus.c odwrapper.c hash_si.c hash_function.c od_igbinary.c od_debug.c; do
+  for ac_src in odus.c odwrapper.c od_hash.c hash_si.c hash_function.c od_igbinary.c od_debug.c; do
 
       IFS=.
       set $ac_src
@@ -3510,7 +3510,7 @@ EOF
 
 
   old_IFS=$IFS
-  for ac_src in odus.c odwrapper.c hash_si.c hash_function.c od_igbinary.c od_debug.c; do
+  for ac_src in odus.c odwrapper.c od_hash.c hash_si.c hash_function.c od_igbinary.c od_debug.c; do
 
       IFS=.
       set $ac_src
@@ -3640,7 +3640,7 @@ _ACEOF
 
 
   old_IFS=$IFS
-  for ac_src in odus.c odwrapper.c hash_si.c hash_function.c od_igbinary.c od_debug.c; do
+  for ac_src in odus.c odwrapper.c od_hash.c hash_si.c hash_function.c od_igbinary.c od_debug.c; do
 
       IFS=.
       set $ac_src
@@ -3686,7 +3686,7 @@ EOF
 
 
   old_IFS=$IFS
-  for ac_src in odus.c odwrapper.c hash_si.c hash_function.c od_igbinary.c od_debug.c; do
+  for ac_src in odus.c odwrapper.c od_hash.c hash_si.c hash_function.c od_igbinary.c od_debug.c; do
 
       IFS=.
       set $ac_src

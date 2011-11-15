@@ -31,7 +31,7 @@ inline static uint32_t nextpow2(uint32_t n) {
 }
 /* }}} */
 /* {{{ hash_si_init */
-int hash_si_init(struct hash_si *h, size_t size) {
+int hash_si_init(struct hash_si *h, uint32_t size) {
 	size = nextpow2(size);
 
 	h->size = size;
@@ -51,7 +51,7 @@ void hash_si_deinit(struct hash_si *h) {
 
 	if(h==NULL || h->data == NULL) return;
 
-	size_t i;
+	uint32_t i;
 	
 	for (i = 0; i < h->size; i++) {
 		if (h->data[i].key != NULL) {
@@ -72,9 +72,9 @@ void hash_si_deinit(struct hash_si *h) {
  * @param key_len Key length.
  * @return index.
  */
-inline static size_t _hash_si_find(struct hash_si *h, const char *key, size_t key_len) {
+inline static uint32_t _hash_si_find(struct hash_si *h, const char *key, uint32_t key_len) {
 	uint32_t hv;
-	size_t size;
+	uint32_t size;
 	
 	assert(h != NULL);
 	
@@ -93,7 +93,7 @@ inline static size_t _hash_si_find(struct hash_si *h, const char *key, size_t ke
 }
 /* }}} */
 /* {{{ hash_si_remove */
-int hash_si_remove(struct hash_si *h, const char *key, size_t key_len, uint32_t *value) {
+int hash_si_remove(struct hash_si *h, const char *key, uint32_t key_len, uint32_t *value) {
 	uint32_t hv;
 	uint32_t j, k;
 	
@@ -163,7 +163,7 @@ int hash_si_remove(struct hash_si *h, const char *key, size_t key_len, uint32_t 
  */
 inline static void hash_si_rehash(struct hash_si *h) {
 	uint32_t hv;
-	size_t i;
+	uint32_t i;
 	struct hash_si newh;
 		
 	assert(h != NULL);
@@ -185,10 +185,10 @@ inline static void hash_si_rehash(struct hash_si *h) {
 }
 /* }}} */
 /* {{{ hash_si_insert */
-int hash_si_insert(struct hash_si *h, const char *key, size_t key_len, uint32_t value) {
+int hash_si_insert(struct hash_si *h, const char *key, uint32_t key_len, uint32_t value) {
 	uint32_t hv;
 
-	if (h->size / 4 * 3 < h->used + 1) {
+	if ((((h->size>>2)<<1) + (h->size>>2)) < h->used + 1) {
 		hash_si_rehash(h);
 	}
 	
@@ -214,7 +214,7 @@ int hash_si_insert(struct hash_si *h, const char *key, size_t key_len, uint32_t 
 }
 /* }}} */
 /* {{{ hash_si_find */
-int hash_si_find(struct hash_si *h, const char *key, size_t key_len, uint32_t *value) {
+int hash_si_find(struct hash_si *h, const char *key, uint32_t key_len, uint32_t *value) {
 	uint32_t hv;
 
 	assert(h != NULL);
@@ -230,8 +230,8 @@ int hash_si_find(struct hash_si *h, const char *key, size_t key_len, uint32_t *v
 }
 /* }}} */
 /* {{{ hash_si_traverse */
-void hash_si_traverse(struct hash_si *h, int (*traverse_function) (const char *key, size_t key_len, uint32_t value)) {
-	size_t i;
+void hash_si_traverse(struct hash_si *h, int (*traverse_function) (const char *key, uint32_t key_len, uint32_t value)) {
+	uint32_t i;
 
 	assert(h != NULL && traverse_function != NULL);
 	
@@ -243,14 +243,14 @@ void hash_si_traverse(struct hash_si *h, int (*traverse_function) (const char *k
 }
 /* }}} */
 /* {{{ hash_si_size */
-size_t hash_si_size(struct hash_si *h) {
+uint32_t hash_si_size(struct hash_si *h) {
 	assert(h != NULL);
 
 	return h->used;
 }
 /* }}} */
 /* {{{ hash_si_capacity */
-size_t hash_si_capacity(struct hash_si *h) {
+uint32_t hash_si_capacity(struct hash_si *h) {
 	assert(h != NULL);
 
 	return h->size;

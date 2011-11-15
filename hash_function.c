@@ -130,7 +130,7 @@ acceptable.  Do NOT use for cryptographic purposes.
 -------------------------------------------------------------------------------
 */
 
-uint32_t hash_function( const void *key, size_t length, uint32_t initval)
+uint32_t hash_function( const void *key, uint32_t length, uint32_t initval)
 {
   	uint32_t a,b,c;                                          /* internal state */
 	const uint8_t *k = (const uint8_t *)key;
