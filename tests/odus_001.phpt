@@ -4,18 +4,27 @@ Check for odus presence
 <?php if (!extension_loaded("odus")) print "skip"; ?>
 --FILE--
 <?php 
-echo "odus extension is available";
-/*
-	you can add regression tests for your extension here
+function show($msg) {
+	echo $msg . "\n";
+}
 
-  the output of your test code has to be equal to the
-  text in the --EXPECT-- section below for the tests
-  to pass, differences between the output and the
-  expected text are interpreted as failure
+show("odus extension is available");
+$class="ODWrapper";show("class $class ".(class_exists($class)?"exists":"doesn't exist"));
+$func="od_serialize";show("function $func ".(function_exists($func)?"exists":"doesn't exist"));
+$func="od_unserialize";show("function $func ".(function_exists($func)?"exists":"doesn't exist"));
+$func="od_version";show("function $func ".(function_exists($func)?"exists":"doesn't exist"));
+$func="od_format_version";show("function $func ".(function_exists($func)?"exists":"doesn't exist"));
+$func="od_format_match";show("function $func ".(function_exists($func)?"exists":"doesn't exist"));
 
-	see php5/README.TESTING for further information on
-  writing regression tests
-*/
+show(od_format_match(od_serialize("test"))?"match":"mismatch");
+
 ?>
 --EXPECT--
 odus extension is available
+class ODWrapper exists
+function od_serialize exists
+function od_unserialize exists
+function od_version exists
+function od_format_version exists
+function od_format_match exists
+match

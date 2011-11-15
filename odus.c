@@ -8,8 +8,9 @@
 #include "ext/standard/info.h"
 #include "php_odus.h"
 
-#include "odwrapper.h"
+#include "od_def.h"
 #include "od_hash.h"
+#include "odwrapper.h"
 #include "ext/standard/php_incomplete_class.h"
 
 //FIXME
@@ -31,6 +32,9 @@ static int le_odus;
 zend_function_entry odus_functions[] = {
 	PHP_FE(od_serialize,	NULL)
 	PHP_FE(od_unserialize,	NULL)
+	PHP_FE(od_version,	NULL)
+	PHP_FE(od_format_version,	NULL)
+	PHP_FE(od_format_match,	NULL)
 	PHP_FE(od_overwrite_function,	NULL)
 	{NULL, NULL, NULL}	/* Must be the last line in odus_functions[] */
 };
@@ -161,11 +165,25 @@ PHP_MINFO_FUNCTION(odus)
 {
 	php_info_print_table_start();
 	php_info_print_table_header(2, "odus support", "enabled");
+	php_info_print_table_row(2, "odus version", OD_VERSION);
+	php_info_print_table_row(2, "odus format version", TEXT(OD_IGBINARY_FORMAT_VERSION));
+
+#ifdef ODDEBUG
+	php_info_print_table_row(2, "odus type", "debug version");
+#else
+	php_info_print_table_row(2, "odus type", "release version");
+#endif
+
+	php_info_print_table_row(2, "odus class", PHP_ODUS_OBJECT_NAME);
+
+	int i=0;
+
+	while(odus_functions[i].fname!=NULL) {
+		php_info_print_table_row(2, "odus function", odus_functions[i].fname);
+		i++;
+	}
 	php_info_print_table_end();
 
-	/* Remove comments if you have entries in php.ini
-	DISPLAY_INI_ENTRIES();
-	*/
 }
 /* }}} */
 
@@ -610,19 +628,52 @@ PHP_FUNCTION(od_overwrite_function)
 
 	Z_TYPE_P(return_value) = IS_NULL;
 }
-/* }}} */
-/* The previous line is meant for vim and emacs, so it can correctly fold and 
-   unfold functions in source code. See the corresponding marks just before 
-   function definition, where the functions purpose is also documented. Please 
-   follow this convention for the convenience of others editing your code.
-*/
 
+PHP_FUNCTION(od_version)
+{
+	Z_TYPE_P(return_value) = IS_STRING;
+	Z_STRVAL_P(return_value) = estrndup(OD_VERSION, sizeof(OD_VERSION)-1);
+	Z_STRLEN_P(return_value) = sizeof(OD_VERSION) -1;
+}
 
-/*
- * Local variables:
- * tab-width: 4
- * c-basic-offset: 4
- * End:
- * vim600: noet sw=4 ts=4 fdm=marker
- * vim<600: noet sw=4 ts=4
- */
+PHP_FUNCTION(od_format_version)
+{
+	char* version = TEXT(OD_IGBINARY_FORMAT_VERSION);
+	int len = sizeof(TEXT(OD_IGBINARY_FORMAT_VERSION)) -1;
+
+	Z_TYPE_P(return_value) = IS_STRING;
+	Z_STRVAL_P(return_value) = estrndup(version, len);
+	Z_STRLEN_P(return_value) = len;
+}
+
+PHP_FUNCTION(od_format_match)
+{
+	char *str;
+	int len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "s", &str, &len) == FAILURE) {
+		RETURN_BOOL(0);
+	}
+
+	if (!str || len < OD_IGBINARY_VERSION_BYTES) {
+		RETURN_BOOL(0);
+	}
+
+	int i;
+
+	uint8_t val;
+
+	ulong version = OD_IGBINARY_FORMAT_VERSION;
+
+	for(i=OD_IGBINARY_VERSION_BYTES-1;i>=0;i--) {
+		val = (version & 0xFF);
+
+		if(val != (uint8_t)str[i]) {
+			RETURN_BOOL(0);
+		}
+
+		version>>=8;
+	}
+
+	RETURN_BOOL(1);
+}

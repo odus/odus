@@ -27,10 +27,17 @@ PHP_MINFO_FUNCTION(odus);
 
 PHP_FUNCTION(od_serialize);
 PHP_FUNCTION(od_unserialize);
+PHP_FUNCTION(od_version);
+PHP_FUNCTION(od_format_version);
+PHP_FUNCTION(od_format_match);
 PHP_FUNCTION(od_overwrite_function);
 
 /** Binary protocol version of igbinary. */
 #define OD_IGBINARY_FORMAT_VERSION 0x4F440001 //OD01
+
+#define _TEXT(t) #t
+#define TEXT(t) _TEXT(t)
+
 #define OD_IGBINARY_VERSION_BYTES  4
 #define OD_RESERVED_BUFFER_LEN 1024
 
