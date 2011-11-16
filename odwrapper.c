@@ -10,8 +10,6 @@
 #include "od_igbinary.h"
 
 
-//FIXME
-//to be deleted start
 void debug_igsd(od_igbinary_unserialize_data* igsd) {
 	debug_buffer(igsd->buffer, igsd->buffer_size, igsd->buffer_offset);
 }
@@ -19,7 +17,6 @@ void debug_igsd(od_igbinary_unserialize_data* igsd) {
 void debug_igsd_info(od_igbinary_unserialize_data* igsd) {
 	debug("buffer: %p size: %d offset: %d",igsd->buffer, igsd->buffer_size, igsd->buffer_offset);
 }
-//to be deleted end
 
 ODUS_ARGINFO_STATIC
 ZEND_BEGIN_ARG_INFO_EX(arginfo_ctor, 0, 0, 2)
@@ -410,8 +407,6 @@ void od_wrapper_object_clone(void *object, void **clone_ptr TSRMLS_DC)
 
 void od_wrapper_object_dtor(void *object, zend_object_handle handle TSRMLS_DC)
 {
-	//FIXME
-	//TODO
 	(void)object;
 }
 
@@ -442,18 +437,13 @@ HashTable* od_wrapper_get_properties(zval *object TSRMLS_DC)
 {
 	od_wrapper_object* od_obj = (od_wrapper_object*)zend_object_store_get_object(object TSRMLS_CC);
 
-	//FIXME
-	//cache the result
 	if(od_obj->zo.properties) return od_obj->zo.properties;
 
 	OD_HASH_LAZY_INIT(od_obj->zo.properties);
 
-	//FIXME
 	debug("@@@ DANGOURS!!!!!!!! in od_wrapper_get_properties for class '%s'",OD_CLASS_NAME(od_obj));
 
 	if(!od_obj->od_properties) od_wrapper_lazy_init(object,od_obj);
-
-	debug_mem("start get all properties for class '%s'",OD_CLASS_NAME(od_obj));
 
 	get_all_members(od_obj);
 
@@ -470,8 +460,6 @@ HashTable* od_wrapper_get_properties(zval *object TSRMLS_DC)
 
 		p = p->pListNext;
 	}
-
-	debug_mem("end get all properties for class '%s'",OD_CLASS_NAME(od_obj));
 
 	return od_obj->zo.properties;
 }
@@ -941,9 +929,6 @@ int od_wrapper_has_property(zval *object, zval *member, int has_set_exists TSRML
 
 zend_function *od_wrapper_get_method(zval **object_ptr, char *method_name, int method_len TSRMLS_DC)
 {
-	//FIXME
-	// to be removed
-
 	od_wrapper_object* od_obj = (od_wrapper_object*)zend_object_store_get_object(*object_ptr TSRMLS_CC);
 
 	debug("$$$ in get_method, func name '%s' for class %s",method_name, OD_CLASS_NAME(od_obj));
@@ -1259,17 +1244,15 @@ zval* od_wrapper_unserialize(od_igbinary_unserialize_data *igsd)
 void search_member(od_wrapper_object* od_obj, const char* member_name, uint32_t member_len, uint32_t hash, ODBucket** ret_bkt, member_pos* ret_pos)
 {
 
-	//FIXME
-	// to be removed
-	// DEBUG start
+#ifdef OD_DEBUG
 	char tname[256];
 	memcpy(tname,member_name,member_len);
 	tname[member_len]='\0';
 	int t;
 	for(t=0;t<member_len;t++) if(tname[t]=='\0') tname[t]='0';
-	// DEBUG end
-
 	debug("in search_member for key %s od hash: %u",tname,hash);
+#endif
+
 
 
 	if(!ret_bkt && !ret_pos) {
@@ -1317,16 +1300,14 @@ void search_member(od_wrapper_object* od_obj, const char* member_name, uint32_t 
 
 			if(ret_bkt) {
 				member = od_wrapper_unserialize(igsd);
-				debug("add property '%s' for class %s hash: %u value: %ld name: %s",tname, od_obj->zo.ce->name, hash, member->type==IS_LONG?member->value.lval:-1234,(len>10)?(name+10):name);
+
 				od_hash_update(od_obj->od_properties,name,len,hash,0,member,ret_bkt);
-				debug("property after hash update '%s' for class %s hash: %u value: %ld name: %s",tname, od_obj->zo.ce->name, hash, member->type==IS_LONG?member->value.lval:-1234,(len>10)?(name+10):name);
 			} else {
 				od_wrapper_skip_value(igsd);
 			}
 
 			if(ret_pos) {
 				ret_pos->val_end_offset = igsd->buffer_offset;
-				debug("find pos info for property '%s' for class %s key start: %u val start: %u val end: %u",tname, od_obj->zo.ce->name, ret_pos->key_start_offset, ret_pos->val_start_offset, ret_pos->val_end_offset);
 			}
 
 			break;
@@ -1336,11 +1317,11 @@ void search_member(od_wrapper_object* od_obj, const char* member_name, uint32_t 
 		}
 	}
 
-	//FIXME
-	//for debug
+#ifdef OD_DEBUG
 	if(ret_bkt && !(*ret_bkt)) {
 		debug("property '%s' is not found in search_member",tname);
 	}
+#endif
 
 	igsd->buffer_offset = first_key_offset;
 }

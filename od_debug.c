@@ -18,8 +18,6 @@
 
 #include <sys/time.h>
 
-//FIXME
-//to be removed
 #include "SAPI.h"
 
 #include "od_debug.h"
@@ -46,9 +44,6 @@ double get_time()
 
 void debug_buffer(uint8_t* buffer, uint32_t len, uint32_t pos)
 {
-	//FIXME
-	//return;
-
 	debug("in debug_buffer");
 
 	char c = ' ';
@@ -91,35 +86,6 @@ void debug_buffer(uint8_t* buffer, uint32_t len, uint32_t pos)
 	}
 
 	fclose(fp);
-}
-
-void debug_mem(char* format, ...)
-{
-
-	va_list args;
-
-	va_start(args, format);
-
-	fprintf(stderr, "\t\t[ ");
-	vfprintf(stderr, format, args);
-	fprintf(stderr, " ]\n");
-
-	va_end(args);
-
-	uint32_t current_peak = zend_memory_peak_usage(1);
-
-	if(start_peak<1) {
-		start_peak = current_peak;
-	} else {
-#if OD_DEBUG_MEM
-		if(current_peak != prev_peak) {
-			fprintf(stderr, "\t\t[ till now memory: %u (%.3fM)",current_peak - start_peak,(current_peak - start_peak)/(1024.0*1024.0));
-			fprintf(stderr, " this time memory: %u  (%.3fM)]\n",current_peak - prev_peak,(current_peak - prev_peak)/(1024.0*1024.0));
-		}
-#endif
-	}
-
-	prev_peak = current_peak;
 }
 
 void debug(char* format, ...)

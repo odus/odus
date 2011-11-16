@@ -19,8 +19,6 @@
 #include "od_hash.h"
 #include "od_debug.h"
 
-//FIXME
-//to be removed
 #include "odwrapper.h"
 extern zend_object_handlers od_wrapper_object_handlers;
 
@@ -227,7 +225,6 @@ inline static void od_hash_rehash(ODHashTable *h) {
 
 	if(!newh) return;
 	
-	//FIXME
 	print_od_ht(h,"rehash");
 
 	for (i = 0; i < h->size; i++) {

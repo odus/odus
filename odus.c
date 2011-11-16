@@ -13,8 +13,6 @@
 #include "odwrapper.h"
 #include "ext/standard/php_incomplete_class.h"
 
-//FIXME
-//to be removed
 #include "ext/standard/php_var.h"
 #include "ext/standard/php_smart_str.h"
 
@@ -118,10 +116,6 @@ PHP_MINIT_FUNCTION(odus)
 	*/
 
 	od_wrapper_init(TSRMLS_C);
-
-	//FIXME
-	//doesn't do this now
-	//od_overwrite_function("serialize","od_serialize");
 
 	return SUCCESS;
 }

@@ -41,8 +41,11 @@
 
 #define min(a,b) ((a)<(b)?(a):(b))
 
-
-#define od_error(type,fmt,args ...) OD_CREATE_FATAL; zend_error(type, "[ODWRAPPER (%d,%s,%s)] [ " fmt " ]\n", OD_LINE, OD_FUNCTION, OD_FILE, ##args)
+#ifdef OD_DEBUG
+	#define od_error(type,fmt,args ...) OD_CREATE_FATAL; zend_error(type, "[ODWRAPPER (%d,%s,%s)] [ " fmt " ]\n", OD_LINE, OD_FUNCTION, OD_FILE, ##args)
+#else
+	#define od_error(type,fmt,args ...) zend_error(type, "[ODWRAPPER (%d,%s,%s)] [ " fmt " ]\n", OD_LINE, OD_FUNCTION, OD_FILE, ##args)
+#endif
 
 #define OD_CALLL_INFO debug("### in %s for member '%s' of class '%s' (%s:%d:%s)",__FUNCTION__,Z_STRVAL_P(member),OD_CLASS_NAME(od_obj),OD_FILE,OD_LINE,OD_FUNCTION)
 

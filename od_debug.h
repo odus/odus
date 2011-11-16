@@ -17,25 +17,20 @@ struct _zend_property_info *od_get_property_info(zend_class_entry *ce, zval *mem
 #define OD_DEBUG_BUFFER 0
 
 #ifdef OD_DEBUG
-void debug(char* format, ...);
+	void debug(char* format, ...);
 
-void debug_mem(char* format, ...);
+	#if OD_DEBUG_BUFFER
+	void debug_buffer(uint8_t* buffer, uint32_t len, uint32_t pos);
+	#else
+	#define debug_buffer
+	#endif
 
-void debug_buffer(uint8_t* buffer, uint32_t len, uint32_t pos);
-
-void print_ht(HashTable* ht);
+	void print_ht(HashTable* ht);
 #else
 
-#define debug
-#define debug_mem
-
-#if OD_DEBUG_BUFFER
-void debug_buffer(uint8_t* buffer, uint32_t len, uint32_t pos);
-#else
-#define debug_buffer
-#endif
-
-#define print_ht
+	#define debug
+	#define debug_buffer
+	#define print_ht
 
 #endif
 

@@ -1516,9 +1516,6 @@ inline static int od_igbinary_unserialize_object(od_igbinary_unserialize_data *i
 		return 1;
 	}
 
-	//FIXME
-	//debug("to be unserialized object name: %s", ce->name);
-
 	object_init_ex(*z, ce);
 
 	//odus doesn't allow object references
