@@ -114,11 +114,11 @@ int od_hash_find(ODHashTable *h, const char *key, uint32_t key_len, uint32_t has
 
 	hv = _od_hash_find(h, key, key_len, hash);
 
-	//for debug
+#ifdef OD_DEBUG
 	if(OD_IS_OCCUPIED(h->buckets[hv])) {
-		debug("od_hash_find key '%s' at position %p bucket index: %d",h->buckets[hv].key,h->buckets+hv,hv);
+		debug("od_hash_find key '%s' at position %p bucket index: %d value: %s null",h->buckets[hv].key,h->buckets+hv,hv,h->buckets[hv].data == NULL?"is":"no");
 	}
-	//
+#endif
 
 	if (!OD_IS_OCCUPIED(h->buckets[hv]) || h->buckets[hv].data == NULL) {
 		if(ret_bkt) {
@@ -155,7 +155,7 @@ void print_od_ht(ODHashTable *h,char* msg) {
 	ODBucket* bkt = h->buckets;
 
 	zval* val;
-	char buf[1024];
+	char buf[1024*2+5];
 	char sbuf[512];
 	char kbuf[512];
 	char vbuf[512];
@@ -174,13 +174,15 @@ void print_od_ht(ODHashTable *h,char* msg) {
 			kbuf[bkt[i].key_len]=0;
 
 			if(val->type == IS_STRING) {
-				for(k=0;k<val->value.str.len;k++) {
+				int len = val->value.str.len<512?val->value.str.len:512;
+
+				for(k=0;k<len;k++) {
 					sbuf[k]=val->value.str.val[k];
 
 					if(sbuf[k]==0) sbuf[k]='0';
 				}
 
-				sbuf[val->value.str.len]=0;
+				sbuf[len]=0;
 
 				sprintf(vbuf,"%s",sbuf);
 			} else if(val->type == IS_LONG) {
@@ -197,9 +199,9 @@ void print_od_ht(ODHashTable *h,char* msg) {
 				sprintf(vbuf,"other-type",kbuf);
 			}
 
-			sprintf(fbuf,"mod:%d new:%d",OD_IS_MODIFIED(bkt[i])?1:0, OD_IS_NEW(bkt[i])?1:0);
+			sprintf(fbuf,"ocu: %d sle: %d mod:%d new:%d",OD_IS_OCCUPIED(bkt[i])?1:0, OD_IS_SLEEP(bkt[i])?1:0, OD_IS_MODIFIED(bkt[i])?1:0, OD_IS_NEW(bkt[i])?1:0);
 
-			sprintf(buf,"flag: %s hash: %u key: %s value: %s\n", fbuf, bkt[i].hash, kbuf, vbuf);
+			sprintf(buf,"flag: (%x) %s hash: %u key: %s value: %s\n", bkt[i].flag, fbuf, bkt[i].hash, kbuf, vbuf);
 
 			print_text(buf,fp);
 		}
@@ -209,9 +211,6 @@ void print_od_ht(ODHashTable *h,char* msg) {
 
 	fclose(fp);
 }
-#else
-#define print_text
-#define print_od_ht
 #endif
 
 inline static void od_hash_rehash(ODHashTable *h) {
@@ -225,7 +224,7 @@ inline static void od_hash_rehash(ODHashTable *h) {
 
 	if(!newh) return;
 	
-	print_od_ht(h,"rehash");
+	//print_od_ht(h,"rehash");
 
 	for (i = 0; i < h->size; i++) {
 		if (OD_IS_OCCUPIED(h->buckets[i])) {
@@ -315,7 +314,7 @@ int od_hash_update (ODHashTable *h, const char *key, uint32_t key_len, uint32_t 
 
 	zval* val = (zval*)data;
 	sprintf(buf,"update hash for key: %s with value: %ld hash: %u",kbuf,(val && val->type == IS_LONG)?val->value.lval:(-1234),hash);
-	print_od_ht(h,buf);
+	//print_od_ht(h,buf);
 
 	debug(buf);
 

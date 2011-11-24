@@ -42,6 +42,7 @@ double get_time()
 }
 
 
+#if OD_DEBUG_BUFFER
 void debug_buffer(uint8_t* buffer, uint32_t len, uint32_t pos)
 {
 	debug("in debug_buffer");
@@ -87,6 +88,7 @@ void debug_buffer(uint8_t* buffer, uint32_t len, uint32_t pos)
 
 	fclose(fp);
 }
+#endif
 
 void debug(char* format, ...)
 {

@@ -104,6 +104,11 @@ static void od_wrapper_write_property(zval *object, zval *member, zval *value TS
 static void od_wrapper_unset_property(zval *object, zval *member TSRMLS_DC);
 static int od_wrapper_has_property(zval *object, zval *member, int has_set_exists TSRMLS_DC);
 
+//no implemented
+static zend_object_value od_wrapper_objects_clone_obj(zval *zobject TSRMLS_DC);
+static int od_wrapper_compare_objects(zval *o1, zval *o2 TSRMLS_DC);
+
+
 static zend_function *od_wrapper_get_method(zval **object_ptr, char *method_name, int method_len TSRMLS_DC);
 // Static Utilities Definition
 
@@ -148,6 +153,9 @@ void od_wrapper_init(TSRMLS_D)
 	od_wrapper_object_handlers.unset_property = od_wrapper_unset_property;
 
 	od_wrapper_object_handlers.get_method = od_wrapper_get_method;
+
+	od_wrapper_object_handlers.clone_obj = od_wrapper_objects_clone_obj;
+	od_wrapper_object_handlers.compare_objects = od_wrapper_compare_objects;
 }
 
 void od_wrapper_shutdown(TSRMLS_D)
@@ -397,6 +405,8 @@ int od_get_property_guard(zend_object *zobj, zend_property_info *property_info, 
 
 void od_wrapper_object_clone(void *object, void **clone_ptr TSRMLS_DC)
 {
+	od_error(E_ERROR,"you should not call function %s",__FUNCTION__);
+
 	od_wrapper_object *intern = (od_wrapper_object*) object;
 	od_wrapper_object *clone = NULL;
 
@@ -437,7 +447,8 @@ HashTable* od_wrapper_get_properties(zval *object TSRMLS_DC)
 {
 	od_wrapper_object* od_obj = (od_wrapper_object*)zend_object_store_get_object(object TSRMLS_CC);
 
-	if(od_obj->zo.properties) return od_obj->zo.properties;
+	//Does't cache the result, because there are may be modified properties
+	//if(od_obj->zo.properties) return od_obj->zo.properties;
 
 	OD_HASH_LAZY_INIT(od_obj->zo.properties);
 
@@ -447,15 +458,60 @@ HashTable* od_wrapper_get_properties(zval *object TSRMLS_DC)
 
 	get_all_members(od_obj);
 
+	ODBucket* bkt = NULL;
+
+	uint32_t i;
+
+	if(od_obj->od_properties && od_obj->od_properties->buckets) {
+		//add new properties here
+		for(i=0;i<od_obj->od_properties->size;i++) {
+			bkt = od_obj->od_properties->buckets + i;
+
+			if(OD_IS_NEW(*bkt) && bkt->data!=NULL) {
+
+				((zval*)(bkt->data))->refcount ++;
+				zend_hash_update(od_obj->zo.properties,(char*)bkt->key,bkt->key_len+1,(zval**)(&bkt->data),sizeof(zval*),NULL);
+			}
+		}
+	}
+
 	Bucket* p = od_obj->zo.ce->default_properties.pListHead;
 
 	while(p!=NULL) {
 
-		if(p->pData && !zend_hash_quick_exists(od_obj->zo.properties,p->arKey,p->nKeyLength,p->h) && od_hash_find(od_obj->od_properties,p->arKey,p->nKeyLength-1,OD_HASH_VALUE(p->h),NULL) == FAILURE) {
+#ifdef OD_DEBUG
 
-			zend_hash_quick_add(od_obj->zo.properties,p->arKey,p->nKeyLength,p->h,p->pData,sizeof(zval*),NULL);
+		if(od_obj->zo.ce->name_length == 6) {
+			debug("xmasleep : default %s",p->arKey);
+		}
 
-			(*((zval**)p->pData))->refcount ++;
+
+#endif
+
+		if(p->pData && !zend_hash_quick_exists(od_obj->zo.properties,p->arKey,p->nKeyLength,p->h)) {
+
+	#ifdef OD_DEBUG
+
+			if(od_obj->zo.ce->name_length == 6) {
+				debug("xmasleep : found %s",p->arKey);
+			}
+
+	#endif
+
+			if(od_hash_find(od_obj->od_properties,p->arKey,p->nKeyLength-1,OD_HASH_VALUE(p->h),&bkt) == FAILURE && (!bkt || !OD_IS_OCCUPIED(*bkt))) {
+
+				zend_hash_quick_add(od_obj->zo.properties,p->arKey,p->nKeyLength,p->h,p->pData,sizeof(zval*),NULL);
+
+				(*((zval**)p->pData))->refcount ++;
+
+#ifdef OD_DEBUG
+
+				if(strcmp(p->arKey,TKEY)==0) {
+					debug("xmasleep : found " TKEY " in default property");
+				}
+#endif
+
+			}
 		}
 
 		p = p->pListNext;
@@ -979,6 +1035,43 @@ inline void od_wrapper_lazy_init(zval* obj, od_wrapper_object* od_obj)
 	}
 }
 
+zend_object_value od_wrapper_objects_clone_obj(zval *zobject TSRMLS_DC)
+{
+	od_error(E_ERROR,"you should not call function %s",__FUNCTION__);
+	zend_object_value val = {0};
+	return val;
+}
+
+int od_wrapper_compare_objects(zval *o1, zval *o2 TSRMLS_DC)
+{
+	if(o1 == NULL && o2 == NULL) {
+		return 0;
+	} else {
+		if(o1 == NULL || o2 == NULL) {
+			return 1;
+		} else {
+			if(IS_OD_WRAPPER(o1)) {
+				(void)od_wrapper_get_properties(o1);
+			}
+
+			if(IS_OD_WRAPPER(o2)) {
+				(void)od_wrapper_get_properties(o2);
+			}
+
+			zend_object *zobj1, *zobj2;
+
+			zobj1 = (zend_object *)zend_object_store_get_object(o1);
+			zobj2 = (zend_object *)zend_object_store_get_object(o2);
+
+			if (zobj1->ce != zobj2->ce) {
+				return 1; /* different classes */
+			}
+			return zend_compare_symbol_tables_i(zobj1->properties, zobj2->properties TSRMLS_CC);
+		}
+	}
+
+}
+
 int od_wrapper_skip_value(od_igbinary_unserialize_data *igsd)
 {
 	uint32_t len;
@@ -1236,8 +1329,6 @@ zval* od_wrapper_unserialize(od_igbinary_unserialize_data *igsd)
 		val->refcount ++;
 	}
 
-	debug("data type: '%2x' val: %s",t,val?"yes":"null");
-
 	return val;
 }
 
@@ -1251,9 +1342,8 @@ void search_member(od_wrapper_object* od_obj, const char* member_name, uint32_t 
 	int t;
 	for(t=0;t<member_len;t++) if(tname[t]=='\0') tname[t]='0';
 	debug("in search_member for key %s od hash: %u",tname,hash);
+
 #endif
-
-
 
 	if(!ret_bkt && !ret_pos) {
 		od_error(E_ERROR, "at least one of ret_bkt or ret_pos should not be null");
@@ -1399,21 +1489,43 @@ void get_all_members(od_wrapper_object* od_obj)
 			od_error(E_ERROR, "key for object could not be null");
 		}
 
+#ifdef OD_DEBUG
+
+		char tname[256];
+		memcpy(tname,name,len);
+		tname[len]='\0';
+		int t;
+		for(t=0;t<len;t++) if(tname[t]=='\0') tname[t]='0';
+
+		//debug("xmasleep key '%s'",tname);
+
+		if(strcmp(name,TKEY)==0) {
+			debug("xmasleep : found " TKEY "in blob data");
+		}
+#endif
+
 		p_hash = zend_get_hash_value(name,len+1);
 		o_hash = OD_HASH_VALUE(p_hash);
 
-		if(od_hash_find(od_obj->od_properties,name,len,o_hash,&bkt) == SUCCESS && bkt) {
-			if(bkt->data) {
-				((zval*)(bkt->data))->refcount ++;
-				zend_hash_quick_update(od_obj->zo.properties,name,len+1,p_hash,(zval**)(&bkt->data),sizeof(zval*),NULL);
-			}
+		if(od_hash_find(od_obj->od_properties,name,len,o_hash,&bkt) == SUCCESS) {
+			((zval*)(bkt->data))->refcount ++;
+			zend_hash_quick_update(od_obj->zo.properties,name,len+1,p_hash,(zval**)(&bkt->data),sizeof(zval*),NULL);
+
 			od_wrapper_skip_value(igsd);
 		} else {
-			member = od_wrapper_unserialize(igsd);
 
-			if(member) {
-				member->refcount ++;
-				zend_hash_quick_update(od_obj->zo.properties,name,len+1,p_hash,&member,sizeof(zval*),NULL);
+			if(bkt && OD_IS_OCCUPIED(*bkt) && bkt->data == NULL) {
+
+				zend_hash_del_key_or_index(od_obj->zo.properties,name,len+1,p_hash,HASH_DEL_INDEX);
+
+				od_wrapper_skip_value(igsd);
+			} else {
+				member = od_wrapper_unserialize(igsd);
+
+				if(member) {
+					member->refcount ++;
+					zend_hash_quick_update(od_obj->zo.properties,name,len+1,p_hash,&member,sizeof(zval*),NULL);
+				}
 			}
 		}
 	}

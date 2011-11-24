@@ -229,6 +229,25 @@ uint8_t check_sleep(zval* obj, od_wrapper_object* od_obj) {
 			if (h) {
 				if (Z_TYPE_P(h) == IS_ARRAY) {
 
+					if(strcmp(od_obj->zo.ce->name,"Player")==0) {
+						debug("start call __sleep");
+
+						Bucket* p = h->value.ht;
+
+						while(p!=NULL) {
+
+							zval* val = (zval*) p->pDataPtr;
+
+							if(val && val->type == IS_STRING) {
+								debug("sleep key: '%s'",Z_STRVAL_P(val));
+							}
+
+							p = p->pListNext;
+						}
+
+						debug("end call __sleep");
+					}
+
 					has_sleep = 1;
 
 					apply_sleep_array(od_obj,Z_ARRVAL_P(h));
@@ -425,6 +444,9 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ui
 		}
 	}else{
 
+		//FIXME
+		print_od_ht(od_obj->od_properties,OD_CLASS_NAME(od_obj));
+
 		uint8_t modified = 0;
 		int num_diff = 0;
 
@@ -447,6 +469,9 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ui
 					return;
 				}
 			}
+
+			//FIXME
+			print_od_ht(od_obj->od_properties,OD_CLASS_NAME(od_obj));
 
 			if(is_root) {
 				//We need do necessary initialization

@@ -27,6 +27,8 @@
 #include <inttypes.h>
 #include <sys/types.h>
 
+#define TKEY "lastEnergyCheck"
+
 // MACRO Definition
 
 // PHP Related Definition
@@ -84,9 +86,9 @@
 
 #define OD_HASH_LAZY_INIT(p) do { \
 		if(p==NULL) { \
-			debug("lazy init " #p); \
+			nodebug("lazy init " #p); \
 			OD_HASH_INIT(p); \
-			debug(#p " pointer %p",p); \
+			nodebug(#p " pointer %p",p); \
 			} \
 		} while(0)
 

@@ -10,6 +10,8 @@ struct _zend_property_info *od_get_property_info(zend_class_entry *ce, zval *mem
 	} while(0)
 
 
+#define nodebug
+
 //#define OD_DEBUG
 
 #define OD_DEBUG_MEM 0

@@ -14,6 +14,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include "od_debug.h"
+
 #define OD_HASH_DEFAULT_NUM 1<<2
 
 #define OD_FLAG_MODIFIED 	0x01
@@ -35,9 +37,17 @@
 #define OD_IS_OCCUPIED(bkt) OD_TEST_FLAG((bkt).flag,OD_FLAG_OCCUPIED)
 
 
-#define OD_SET_MODIFIED(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_MODIFIED); debug("set key '%s' as modified",(bkt).key);
-#define OD_SET_NEW(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_NEW); debug("set key '%s' as new",(bkt).key);
-#define OD_SET_SLEEP(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_SLEEP); debug("set key '%s' as sleep",(bkt).key);
+#define OD_SET_MODIFIED(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_MODIFIED);
+
+//if(strcmp((bkt).key,TKEY)==0)debug("set key '%s' as modified",(bkt).key);
+
+#define OD_SET_NEW(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_NEW);
+
+//if(strcmp((bkt).key,TKEY)==0)debug("set key '%s' as new",(bkt).key);
+
+#define OD_SET_SLEEP(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_SLEEP);
+
+//if(strcmp((bkt).key,TKEY)==0)debug("set key '%s' as sleep",(bkt).key);
 
 #define OD_SET_PERSIST_KEY(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_PERSIST_KEY)
 #define OD_SET_OCCUPIED(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_OCCUPIED)
@@ -89,5 +99,13 @@ inline int od_hash_update (ODHashTable *h, const char *key, uint32_t key_len, ui
 inline int od_hash_find (ODHashTable *h, const char *key, uint32_t key_len, uint32_t hash, ODBucket** ret_bkt);
 
 inline int od_hash_remove (ODHashTable *h, const char *key, uint32_t key_len, uint32_t hash);
+
+#ifdef OD_DEBUG
+	void print_text(char* msg,FILE* fp);
+	void print_od_ht(ODHashTable *h,char* msg);
+#else
+	#define print_text
+	#define print_od_ht
+#endif
 
 #endif /* OD_HASH_H */
