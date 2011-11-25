@@ -16,10 +16,11 @@ struct _zend_property_info *od_get_property_info(zend_class_entry *ce, zval *mem
 
 #define OD_DEBUG_MEM 0
 #define OD_DEBUG_TIME 0
-#define OD_DEBUG_BUFFER 0
+#define OD_DEBUG_BUFFER 1
 
 #ifdef OD_DEBUG
 	void debug(char* format, ...);
+	void web_debug(char* format, ...);
 
 	#if OD_DEBUG_BUFFER
 	void debug_buffer(uint8_t* buffer, uint32_t len, uint32_t pos);
@@ -31,6 +32,7 @@ struct _zend_property_info *od_get_property_info(zend_class_entry *ce, zval *mem
 #else
 
 	#define debug
+	#define web_debug
 	#define debug_buffer
 	#define print_ht
 

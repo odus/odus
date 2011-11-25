@@ -90,6 +90,179 @@ void debug_buffer(uint8_t* buffer, uint32_t len, uint32_t pos)
 }
 #endif
 
+void web_debug(char* format, ...)
+{
+	int type = E_WARNING;
+
+	va_list args;
+	va_list usr_copy;
+	zval ***params;
+	zval *retval;
+	zval *z_error_type, *z_error_message, *z_error_filename, *z_error_lineno, *z_context;
+	char *error_filename;
+	uint error_lineno;
+	zval *orig_user_error_handler;
+	zend_bool in_compilation;
+	zend_class_entry *saved_class_entry;
+	TSRMLS_FETCH();
+
+	/* Obtain relevant filename and lineno */
+	switch (type) {
+		case E_CORE_ERROR:
+		case E_CORE_WARNING:
+			error_filename = NULL;
+			error_lineno = 0;
+			break;
+		case E_PARSE:
+		case E_COMPILE_ERROR:
+		case E_COMPILE_WARNING:
+		case E_ERROR:
+		case E_NOTICE:
+		case E_STRICT:
+		case E_WARNING:
+		case E_USER_ERROR:
+		case E_USER_WARNING:
+		case E_USER_NOTICE:
+		case E_RECOVERABLE_ERROR:
+			if (zend_is_compiling(TSRMLS_C)) {
+				error_filename = zend_get_compiled_filename(TSRMLS_C);
+				error_lineno = zend_get_compiled_lineno(TSRMLS_C);
+			} else if (zend_is_executing(TSRMLS_C)) {
+				error_filename = zend_get_executed_filename(TSRMLS_C);
+				error_lineno = zend_get_executed_lineno(TSRMLS_C);
+			} else {
+				error_filename = NULL;
+				error_lineno = 0;
+			}
+			break;
+		default:
+			error_filename = NULL;
+			error_lineno = 0;
+			break;
+	}
+	if (!error_filename) {
+		error_filename = "Unknown";
+	}
+
+	va_start(args, format);
+
+	/* if we don't have a user defined error handler */
+	if (!EG(user_error_handler)
+		|| !(EG(user_error_handler_error_reporting) & type)) {
+		zend_error_cb(type, error_filename, error_lineno, format, args);
+	} else switch (type) {
+		case E_ERROR:
+		case E_PARSE:
+		case E_CORE_ERROR:
+		case E_CORE_WARNING:
+		case E_COMPILE_ERROR:
+		case E_COMPILE_WARNING:
+			/* The error may not be safe to handle in user-space */
+			zend_error_cb(type, error_filename, error_lineno, format, args);
+			break;
+		default:
+			/* Handle the error in user space */
+			ALLOC_INIT_ZVAL(z_error_message);
+			ALLOC_INIT_ZVAL(z_error_type);
+			ALLOC_INIT_ZVAL(z_error_filename);
+			ALLOC_INIT_ZVAL(z_error_lineno);
+			ALLOC_INIT_ZVAL(z_context);
+
+/* va_copy() is __va_copy() in old gcc versions.
+ * According to the autoconf manual, using
+ * memcpy(&dst, &src, sizeof(va_list))
+ * gives maximum portability. */
+#ifndef va_copy
+# ifdef __va_copy
+#  define va_copy(dest, src)	__va_copy((dest), (src))
+# else
+#  define va_copy(dest, src)	memcpy(&(dest), &(src), sizeof(va_list))
+# endif
+#endif
+			va_copy(usr_copy, args);
+			z_error_message->value.str.len = zend_vspprintf(&z_error_message->value.str.val, 0, format, usr_copy);
+#ifdef va_copy
+			va_end(usr_copy);
+#endif
+			z_error_message->type = IS_STRING;
+
+			z_error_type->value.lval = type;
+			z_error_type->type = IS_LONG;
+
+			if (error_filename) {
+				z_error_filename->value.str.len = strlen(error_filename);
+				z_error_filename->value.str.val = estrndup(error_filename, z_error_filename->value.str.len);
+				z_error_filename->type = IS_STRING;
+			}
+
+			z_error_lineno->value.lval = error_lineno;
+			z_error_lineno->type = IS_LONG;
+
+			z_context->value.ht = EG(active_symbol_table);
+			z_context->type = IS_ARRAY;
+			zval_copy_ctor(z_context);
+
+			params = (zval ***) emalloc(sizeof(zval **)*5);
+			params[0] = &z_error_type;
+			params[1] = &z_error_message;
+			params[2] = &z_error_filename;
+			params[3] = &z_error_lineno;
+			params[4] = &z_context;
+
+			orig_user_error_handler = EG(user_error_handler);
+			EG(user_error_handler) = NULL;
+
+			/* User error handler may include() additinal PHP files.
+			 * If an error was generated during comilation PHP will compile
+			 * such scripts recursivly, but some CG() variables may be
+			 * inconsistent. */
+
+			in_compilation = zend_is_compiling(TSRMLS_C);
+			if (in_compilation) {
+				saved_class_entry = CG(active_class_entry);
+				CG(active_class_entry) = NULL;
+			}
+
+			if (call_user_function_ex(CG(function_table), NULL, orig_user_error_handler, &retval, 5, params, 1, NULL TSRMLS_CC)==SUCCESS) {
+				if (retval) {
+					if (Z_TYPE_P(retval) == IS_BOOL && Z_LVAL_P(retval) == 0) {
+						zend_error_cb(type, error_filename, error_lineno, format, args);
+					}
+					zval_ptr_dtor(&retval);
+				}
+			} else if (!EG(exception)) {
+				/* The user error handler failed, use built-in error handler */
+				zend_error_cb(type, error_filename, error_lineno, format, args);
+			}
+
+			if (in_compilation) {
+				CG(active_class_entry) = saved_class_entry;
+			}
+
+			if (!EG(user_error_handler)) {
+				EG(user_error_handler) = orig_user_error_handler;
+			}
+			else {
+				zval_ptr_dtor(&orig_user_error_handler);
+			}
+
+			efree(params);
+			zval_ptr_dtor(&z_error_message);
+			zval_ptr_dtor(&z_error_type);
+			zval_ptr_dtor(&z_error_filename);
+			zval_ptr_dtor(&z_error_lineno);
+			zval_ptr_dtor(&z_context);
+			break;
+	}
+
+	va_end(args);
+
+	if (type == E_PARSE) {
+		EG(exit_status) = 255;
+		zend_init_compiler_data_structures(TSRMLS_C);
+	}
+}
+
 void debug(char* format, ...)
 {
 	double current = get_time();
@@ -125,9 +298,9 @@ void debug(char* format, ...)
 
 	int type = E_WARNING;
 
-	if(sapi_module.name && strcmp(sapi_module.name,client) ==0) {
+	va_list args;
 
-		va_list args;
+	if(sapi_module.name && strcmp(sapi_module.name,client) ==0) {
 
 		va_start(args, format);
 
@@ -137,6 +310,27 @@ void debug(char* format, ...)
 
 		va_end(args);
 	} else {
+
+		char* file="/tmp/odus.log";
+
+		FILE* fp = fopen(file,"a+");
+
+		if(!fp) {
+			return;
+		}
+
+		va_start(args, format);
+
+		fprintf(fp, "\t\t[ ");
+		vfprintf(fp, format, args);
+		fprintf(fp, " ]\n");
+
+		va_end(args);
+
+		fclose(fp);
+
+		//FIXME
+		return;
 
 		va_list args;
 		va_list usr_copy;

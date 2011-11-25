@@ -440,6 +440,11 @@ void od_wrapper_object_free_storage(void *object TSRMLS_DC)
 	}
 #endif
 
+	if(intern->od_properties) {
+		od_hash_deinit(&intern->od_properties);
+		intern->od_properties = NULL;
+	}
+
 	efree(intern);
 }
 
@@ -455,6 +460,10 @@ HashTable* od_wrapper_get_properties(zval *object TSRMLS_DC)
 	debug("@@@ DANGOURS!!!!!!!! in od_wrapper_get_properties for class '%s'",OD_CLASS_NAME(od_obj));
 
 	if(!od_obj->od_properties) od_wrapper_lazy_init(object,od_obj);
+
+#ifdef OD_DEBUG
+	print_od_ht(od_obj->od_properties,"before get all");
+#endif
 
 	get_all_members(od_obj);
 
@@ -508,6 +517,7 @@ HashTable* od_wrapper_get_properties(zval *object TSRMLS_DC)
 
 				if(strcmp(p->arKey,TKEY)==0) {
 					debug("xmasleep : found " TKEY " in default property");
+					web_debug("xmasleep : found " TKEY " in default property");
 				}
 #endif
 
@@ -516,6 +526,11 @@ HashTable* od_wrapper_get_properties(zval *object TSRMLS_DC)
 
 		p = p->pListNext;
 	}
+
+
+#ifdef OD_DEBUG
+	print_od_ht(od_obj->od_properties,"after get all");
+#endif
 
 	return od_obj->zo.properties;
 }
@@ -547,7 +562,11 @@ zval *od_wrapper_read_property(zval *object, zval *member, int type TSRMLS_DC)
 		member = tmp_member;
 	}
 
- 	OD_CALLL_INFO;
+#ifdef OD_DEBUG
+ 	OD_CALL_INFO;
+
+ 	check_od_ht(od_obj->od_properties,__FUNCTION__);
+#endif
 
 #if DEBUG_OBJECT_HANDLERS
 	fprintf(stderr, "Read object #%d property: %s\n", Z_OBJ_HANDLE_P(object), Z_STRVAL_P(member));
@@ -660,7 +679,11 @@ zval **od_wrapper_get_property_ptr_ptr(zval *object, zval *member TSRMLS_DC)
 		member = &tmp_member;
 	}
 
- 	OD_CALLL_INFO;
+#ifdef OD_DEBUG
+ 	OD_CALL_INFO;
+
+ 	check_od_ht(od_obj->od_properties,__FUNCTION__);
+#endif
 
 #if DEBUG_OBJECT_HANDLERS
 	fprintf(stderr, "Ptr object #%d property: %s\n", Z_OBJ_HANDLE_P(object), Z_STRVAL_P(member));
@@ -751,7 +774,11 @@ void od_wrapper_write_property(zval *object, zval *member, zval *value TSRMLS_DC
 		member = tmp_member;
 	}
 
- 	OD_CALLL_INFO;
+#ifdef OD_DEBUG
+ 	OD_CALL_INFO;
+
+ 	check_od_ht(od_obj->od_properties,__FUNCTION__);
+#endif
 
 	property_info = zend_get_property_info(zobj->ce, member, (zobj->ce->__set != NULL) TSRMLS_CC);
 
@@ -834,7 +861,11 @@ void od_wrapper_unset_property(zval *object, zval *member TSRMLS_DC)
 		member = tmp_member;
 	}
 
- 	OD_CALLL_INFO;
+#ifdef OD_DEBUG
+ 	OD_CALL_INFO;
+
+ 	check_od_ht(od_obj->od_properties,__FUNCTION__);
+#endif
 
 	property_info = zend_get_property_info(zobj->ce, member, (zobj->ce->__unset != NULL) TSRMLS_CC);
 
@@ -913,7 +944,11 @@ int od_wrapper_has_property(zval *object, zval *member, int has_set_exists TSRML
 		member = tmp_member;
 	}
 
-	OD_CALLL_INFO;
+#ifdef OD_DEBUG
+ 	OD_CALL_INFO;
+
+ 	check_od_ht(od_obj->od_properties,__FUNCTION__);
+#endif
 
 #if DEBUG_OBJECT_HANDLERS
 	fprintf(stderr, "Read object #%d property: %s\n", Z_OBJ_HANDLE_P(object), Z_STRVAL_P(member));
@@ -1410,6 +1445,15 @@ void search_member(od_wrapper_object* od_obj, const char* member_name, uint32_t 
 #ifdef OD_DEBUG
 	if(ret_bkt && !(*ret_bkt)) {
 		debug("property '%s' is not found in search_member",tname);
+
+		if(memcmp(member_name,TKEY,member_len)==0) {
+
+			od_igbinary_unserialize_data tigsd = *igsd;
+
+			tigsd.buffer_offset = 0;
+
+			debug_igsd(&tigsd);
+		}
 	}
 #endif
 
@@ -1497,10 +1541,11 @@ void get_all_members(od_wrapper_object* od_obj)
 		int t;
 		for(t=0;t<len;t++) if(tname[t]=='\0') tname[t]='0';
 
-		//debug("xmasleep key '%s'",tname);
+		debug("xmasleep key '%s'",tname);
 
 		if(strcmp(name,TKEY)==0) {
 			debug("xmasleep : found " TKEY "in blob data");
+			web_debug("xmasleep : found " TKEY "in blob data");
 		}
 #endif
 
@@ -1576,6 +1621,13 @@ uint8_t is_od_wrapper_obj_modified(zval* obj,uint8_t has_sleep, int* member_num_
 
 	od_wrapper_object* od_obj = (od_wrapper_object*)zend_object_store_get_object(obj TSRMLS_CC);
 
+#ifdef OD_DEBUG
+	char buf[1024];
+	sprintf(buf,"before modify check for class '%s' sleep status: %u",od_obj->zo.ce->name,has_sleep);
+	check_od_ht(od_obj->od_properties,buf);
+	print_od_ht(od_obj->od_properties,buf);
+#endif
+
 	ODHashTable* ht = od_obj->od_properties;
 	ODBucket* bkt = NULL;
 
@@ -1593,6 +1645,12 @@ uint8_t is_od_wrapper_obj_modified(zval* obj,uint8_t has_sleep, int* member_num_
 	for(i=0; i< ht->size; i++) {
 		bkt = ht->buckets + i;
 		if(OD_IS_OCCUPIED(*bkt)){
+
+#ifdef OD_DEBUG
+			if(strcmp(TKEY,bkt->key)==0){
+				debug("flag for key '%s' : %x at %d",bkt->key,bkt->flag, __LINE__);
+			}
+#endif
 			val = (zval*)(bkt->data);
 
 			if(val==NULL) {
@@ -1605,6 +1663,13 @@ uint8_t is_od_wrapper_obj_modified(zval* obj,uint8_t has_sleep, int* member_num_
 
 					num_diff --;
 				}
+
+#ifdef OD_DEBUG
+			if(strcmp(TKEY,bkt->key)==0){
+				debug("flag for key '%s' : %x at %d",bkt->key,bkt->flag, __LINE__);
+			}
+#endif
+
 			} else {
 
 				if(has_sleep && !OD_IS_SLEEP(*bkt)) {
@@ -1617,6 +1682,13 @@ uint8_t is_od_wrapper_obj_modified(zval* obj,uint8_t has_sleep, int* member_num_
 
 						num_diff --;
 					}
+
+#ifdef OD_DEBUG
+			if(strcmp(TKEY,bkt->key)==0){
+				debug("flag for key '%s' : %x at %d",bkt->key,bkt->flag, __LINE__);
+			}
+#endif
+
 				} else {
 					if(OD_IS_NEW(*bkt)) {
 
@@ -1628,25 +1700,86 @@ uint8_t is_od_wrapper_obj_modified(zval* obj,uint8_t has_sleep, int* member_num_
 					}
 
 					if (IS_OD_WRAPPER(val)) {
+
+#ifdef OD_DEBUG
+			if(strcmp(TKEY,bkt->key)==0){
+				debug("flag for key '%s' : %x at %d",bkt->key,bkt->flag, __LINE__);
+			}
+#endif
+
 						if(!is_od_wrapper_obj_modified(val,0,NULL)) {
+
+#ifdef OD_DEBUG
+			if(strcmp(TKEY,bkt->key)==0){
+				debug("flag for key '%s' : %x at %d",bkt->key,bkt->flag, __LINE__);
+			}
+#endif
 							OD_RESET_MODIFIED(*bkt);
+
+#ifdef OD_DEBUG
+			if(strcmp(TKEY,bkt->key)==0){
+				debug("flag for key '%s' : %x at %d",bkt->key,bkt->flag, __LINE__);
+			}
+#endif
 						} else {
 							modified = 1;
 							OD_SET_MODIFIED(*bkt);
 						}
+
+#ifdef OD_DEBUG
+			if(strcmp(TKEY,bkt->key)==0){
+				debug("flag for key '%s' : %x at %d",bkt->key,bkt->flag, __LINE__);
+			}
+#endif
 					} else {
 						if(OD_IS_MODIFIED(*bkt) || val->type == IS_OBJECT) {
+
+#ifdef OD_DEBUG
+			if(strcmp(TKEY,bkt->key)==0){
+				debug("flag for key '%s' : %x at %d",bkt->key,bkt->flag, __LINE__);
+			}
+#endif
 
 							debug("check -> existed key %s is modified", bkt->key);
 
 							modified = 1;
 							OD_SET_MODIFIED(*bkt);
+
+#ifdef OD_DEBUG
+			if(strcmp(TKEY,bkt->key)==0){
+				debug("flag for key '%s' : %x at %d",bkt->key,bkt->flag, __LINE__);
+			}
+#endif
 						}
+
+#ifdef OD_DEBUG
+			if(strcmp(TKEY,bkt->key)==0){
+				debug("flag for key '%s' : %x at %d",bkt->key,bkt->flag, __LINE__);
+			}
+#endif
 					}
+
+#ifdef OD_DEBUG
+			if(strcmp(TKEY,bkt->key)==0){
+				debug("flag for key '%s' : %x at %d",bkt->key,bkt->flag, __LINE__);
+			}
+#endif
 				}
 			}
+
+#ifdef OD_DEBUG
+			if(strcmp(TKEY,bkt->key)==0){
+				debug("flag for key '%s' : %x at %d",bkt->key,bkt->flag, __LINE__);
+			}
+#endif
 		}
 	}
+
+#ifdef OD_DEBUG
+	sprintf(buf,"after modify check for class '%s' sleep status: %u",od_obj->zo.ce->name,has_sleep);
+	check_od_ht(od_obj->od_properties,buf);
+	print_od_ht(od_obj->od_properties,buf);
+#endif
 
 	if(member_num_diff) {
 		*member_num_diff = num_diff;

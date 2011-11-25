@@ -96,6 +96,12 @@ inline static uint32_t _od_hash_find(ODHashTable *h, const char *key, uint32_t k
 		OD_IS_OCCUPIED(h->buckets[hv]) &&
 		(h->buckets[hv].hash != hash || h->buckets[hv].key_len != key_len  || (!(h->buckets[hv].key == NULL && key==NULL) && (h->buckets[hv].key[0]!=key[0] || memcmp(h->buckets[hv].key, key, key_len) != 0)))) {
 
+#ifdef OD_DEBUG
+		if(memcmp(TKEY,key,key_len)==0) {
+			debug("try pos %u (key: %s len: %u hash: %u) for key: %s len: %u hash: %u", hv, h->buckets[hv].key,h->buckets[hv].key_len,h->buckets[hv].hash,key,key_len,hash);
+		}
+#endif
+
 		hv = (hv + 1) & (h->size-1);
 		size--;
 	}
@@ -112,13 +118,40 @@ int od_hash_find(ODHashTable *h, const char *key, uint32_t key_len, uint32_t has
 		*ret_bkt = NULL;
 	}
 
+#ifdef OD_DEBUG
+	check_od_ht(h,"before find");
+#endif
+
 	hv = _od_hash_find(h, key, key_len, hash);
 
 #ifdef OD_DEBUG
 	if(OD_IS_OCCUPIED(h->buckets[hv])) {
 		debug("od_hash_find key '%s' at position %p bucket index: %d value: %s null",h->buckets[hv].key,h->buckets+hv,hv,h->buckets[hv].data == NULL?"is":"no");
+	} else {
+		if(memcmp(TKEY,key,key_len)==0) {
+			//print_od_ht(h,TKEY);
+
+			debug("pos: %d not find key '%s' len %u hash %u",hv,key,key_len,hash);
+			web_debug("pos: %d not find key '%s' len %u hash %u",hv,key,key_len,hash);
+
+			uint32_t size = h->size;
+			uint32_t hv;
+
+			hv = hash & (h->size-1);
+			while(size>0  && OD_IS_OCCUPIED(h->buckets[hv])) {
+
+				debug("check pos: %d key: '%s' len: %u hash: %u",hv,h->buckets[hv].key,h->buckets[hv].key_len,h->buckets[hv].hash);
+
+				hv = (hv + 1) & (h->size-1);
+				size--;
+			}
+		}
 	}
+
+	check_od_ht(h,"after find");
 #endif
+
+
 
 	if (!OD_IS_OCCUPIED(h->buckets[hv]) || h->buckets[hv].data == NULL) {
 		if(ret_bkt) {
@@ -138,6 +171,22 @@ void print_text(char* msg,FILE* fp) {
 	fwrite(msg,1,strlen(msg),fp);
 }
 
+void check_od_ht(ODHashTable *h,char* msg) {
+	if(!h) return;
+
+	uint32_t i;
+
+	ODBucket* bkt = h->buckets;
+
+	for(i=0;i<h->size;i++) {
+
+		if(!OD_IS_OCCUPIED(bkt[i]) && bkt[i].key!=NULL) {
+			debug("msg: %s key '%s' has wrong flag %u [%d,%s,%s]", msg, bkt[i].key, bkt[i].flag,OD_LINE, OD_FUNCTION, OD_FILE);
+			web_debug("msg: %s key '%s' has wrong flag %u [%d,%s,%s]", msg, bkt[i].key, bkt[i].flag,OD_LINE, OD_FUNCTION, OD_FILE);
+		}
+	}
+}
+
 void print_od_ht(ODHashTable *h,char* msg) {
 	if(!h) return;
 
@@ -145,10 +194,7 @@ void print_od_ht(ODHashTable *h,char* msg) {
 
 	if(!fp) return;
 
-	debug("start rehash");
-
-	print_text(msg,fp);
-	print_text("\nstart print hash table\n",fp);
+	fprintf(fp,"\nstart print hash table for %s table size: %u\n",msg,h->size);
 
 	uint32_t i,k;
 
@@ -201,13 +247,18 @@ void print_od_ht(ODHashTable *h,char* msg) {
 
 			sprintf(fbuf,"ocu: %d sle: %d mod:%d new:%d",OD_IS_OCCUPIED(bkt[i])?1:0, OD_IS_SLEEP(bkt[i])?1:0, OD_IS_MODIFIED(bkt[i])?1:0, OD_IS_NEW(bkt[i])?1:0);
 
-			sprintf(buf,"flag: (%x) %s hash: %u key: %s value: %s\n", bkt[i].flag, fbuf, bkt[i].hash, kbuf, vbuf);
+			fprintf(fp,"pos: %d flag: (%x) %s hash: %u key: %s value: %s\n", i, bkt[i].flag, fbuf, bkt[i].hash, kbuf, vbuf);
 
-			print_text(buf,fp);
+		} else {
+			if(OD_IS_OCCUPIED(bkt[i]) && bkt[i].data == NULL) {
+				fprintf(fp,"pos: %d flag: (%x) hash: %u key: %s is null\n",i,bkt[i].flag, bkt[i].hash, bkt[i].key);
+			} else {
+				fprintf(fp,"pos: %d flag: (%x) hash: %u key: %s is not occupied value: %s null %s\n",i,bkt[i].flag, bkt[i].hash, bkt[i].key?bkt[i].key:"null", bkt[i].data?"not":"",bkt[i].key?"wrong":"");
+			}
 		}
 	}
 
-	print_text("\nend print hash table\n",fp);
+	fprintf(fp,"\nend print hash table for %s table size: %u\n",msg,h->size);
 
 	fclose(fp);
 }
@@ -224,7 +275,7 @@ inline static void od_hash_rehash(ODHashTable *h) {
 
 	if(!newh) return;
 	
-	//print_od_ht(h,"rehash");
+	print_od_ht(h,"before rehash");
 
 	for (i = 0; i < h->size; i++) {
 		if (OD_IS_OCCUPIED(h->buckets[i])) {
@@ -233,6 +284,9 @@ inline static void od_hash_rehash(ODHashTable *h) {
 		}
 	}	
 	
+
+	print_od_ht(newh,"after rehash");
+
 	efree(h->buckets);
 	h->buckets = newh->buckets;
 	h->size *= 2;
@@ -244,16 +298,31 @@ inline static void od_hash_rehash(ODHashTable *h) {
 int od_hash_update (ODHashTable *h, const char *key, uint32_t key_len, uint32_t hash, uint8_t persist,void* data, ODBucket** ret_bkt) {
 	uint32_t hv;
 
-	debug("prepare update for key %s key_len: %d hash: %u",key_len>10?(key+10):key,key_len,hash);
+	debug("prepare update for key %s key_len: %d hash: %u",key,key_len,hash);
 
 	if(ret_bkt) {
 		*ret_bkt = NULL;
 	}
 
 	if ((((h->size>>2)<<1) + (h->size>>2)) < h->used + 1) {
+
+#ifdef OD_DEBUG
+		debug("rehash for key '%s'",key);
+		check_od_ht(h,"before rehash");
+#endif
+
 		od_hash_rehash(h);
+
+#ifdef OD_DEBUG
+		check_od_ht(h,"after rehash");
+#endif
+
 	}
 	
+#ifdef OD_DEBUG
+	check_od_ht(h,"update start");
+#endif
+
 	hv = _od_hash_find(h, key, key_len, hash);
 	
 	if (!OD_IS_OCCUPIED(h->buckets[hv])) {
@@ -300,6 +369,7 @@ int od_hash_update (ODHashTable *h, const char *key, uint32_t key_len, uint32_t 
 		*ret_bkt = h->buckets + hv;
 	}
 
+#ifdef OD_DEBUG
 	//FIMXE
 	char buf[1024];
 	char kbuf[512];
@@ -313,10 +383,18 @@ int od_hash_update (ODHashTable *h, const char *key, uint32_t key_len, uint32_t 
 	kbuf[key_len]=0;
 
 	zval* val = (zval*)data;
-	sprintf(buf,"update hash for key: %s with value: %ld hash: %u",kbuf,(val && val->type == IS_LONG)?val->value.lval:(-1234),hash);
+	sprintf(buf,"update hash for key: %s with value: %ld hash: %u at pos %u with hash size %u flag: %x",kbuf,(val && val->type == IS_LONG)?val->value.lval:(-1234),hash,hv,h->size,h->buckets[hv].flag);
+
+	if(memcmp(TKEY,key,key_len)==0) {
+		print_od_ht(h,TKEY "update");
+	}
+
 	//print_od_ht(h,buf);
 
 	debug(buf);
+
+	check_od_ht(h,"update end");
+#endif
 
 	return SUCCESS;
 }

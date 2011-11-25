@@ -26,7 +26,7 @@
 #define OD_FLAG_OCCUPIED 	0x80
 
 #define OD_SET_FLAG(flag,mask) (flag)=((flag)|(mask))
-#define OD_RESET_FLAG(flag,mask) (flag)=((flag)&(!mask))
+#define OD_RESET_FLAG(flag,mask) (flag)=((flag)&(~mask))
 #define OD_TEST_FLAG(flag,mask) ((flag)&(mask))
 
 #define OD_IS_MODIFIED(bkt) OD_TEST_FLAG((bkt).flag,OD_FLAG_MODIFIED)
@@ -37,17 +37,11 @@
 #define OD_IS_OCCUPIED(bkt) OD_TEST_FLAG((bkt).flag,OD_FLAG_OCCUPIED)
 
 
-#define OD_SET_MODIFIED(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_MODIFIED);
+#define OD_SET_MODIFIED(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_MODIFIED); if(strcmp((bkt).key,TKEY)==0)debug("set key '%s' as modified",(bkt).key);
 
-//if(strcmp((bkt).key,TKEY)==0)debug("set key '%s' as modified",(bkt).key);
+#define OD_SET_NEW(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_NEW); if(strcmp((bkt).key,TKEY)==0)debug("set key '%s' as new",(bkt).key);
 
-#define OD_SET_NEW(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_NEW);
-
-//if(strcmp((bkt).key,TKEY)==0)debug("set key '%s' as new",(bkt).key);
-
-#define OD_SET_SLEEP(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_SLEEP);
-
-//if(strcmp((bkt).key,TKEY)==0)debug("set key '%s' as sleep",(bkt).key);
+#define OD_SET_SLEEP(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_SLEEP); if(strcmp((bkt).key,TKEY)==0)debug("set key '%s' as sleep",(bkt).key);
 
 #define OD_SET_PERSIST_KEY(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_PERSIST_KEY)
 #define OD_SET_OCCUPIED(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_OCCUPIED)
@@ -66,7 +60,7 @@
 #define OD_HASH_SIZE(h) ((h)?(h)->used:0)
 #define OD_HASH_CAPACITY(h) ((h)?(h)->size:0)
 
-#define OD_HASH_FREE_KEY(bkt) if ((bkt).key != NULL && !OD_IS_PERSIST_KEY(bkt)) { efree((char*)((bkt).key)); (bkt).key = NULL; }
+#define OD_HASH_FREE_KEY(bkt) if ((bkt).key != NULL && OD_IS_PERSIST_KEY(bkt)) { efree((char*)((bkt).key)); (bkt).key = NULL; }
 #define OD_HASH_FREE_VAL(bkt) OD_ZVAL_PTR_DTOR((zval**)(&(bkt).data)); (bkt).data = NULL;
 
 #define OD_HASH_RESET_BKT(bkt) \
@@ -103,9 +97,11 @@ inline int od_hash_remove (ODHashTable *h, const char *key, uint32_t key_len, ui
 #ifdef OD_DEBUG
 	void print_text(char* msg,FILE* fp);
 	void print_od_ht(ODHashTable *h,char* msg);
+	void check_od_ht(ODHashTable* h,char* msg);
 #else
 	#define print_text
 	#define print_od_ht
+	#define check_od_ht
 #endif
 
 #endif /* OD_HASH_H */

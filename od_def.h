@@ -28,6 +28,7 @@
 #include <sys/types.h>
 
 #define TKEY "lastEnergyCheck"
+//#define TKEY "commodities"
 
 // MACRO Definition
 
@@ -49,7 +50,7 @@
 	#define od_error(type,fmt,args ...) zend_error(type, "[ODWRAPPER (%d,%s,%s)] [ " fmt " ]\n", OD_LINE, OD_FUNCTION, OD_FILE, ##args)
 #endif
 
-#define OD_CALLL_INFO debug("### in %s for member '%s' of class '%s' (%s:%d:%s)",__FUNCTION__,Z_STRVAL_P(member),OD_CLASS_NAME(od_obj),OD_FILE,OD_LINE,OD_FUNCTION)
+#define OD_CALL_INFO debug("### in %s for member '%s' of class '%s' (%s:%d:%s)",__FUNCTION__,Z_STRVAL_P(member),OD_CLASS_NAME(od_obj),OD_FILE,OD_LINE,OD_FUNCTION)
 
 #define IS_OD_WRAPPER(object) (((object) == NULL || (object)->type != IS_OBJECT) ? 0 : (object)->value.obj.handlers == &od_wrapper_object_handlers)
 
