@@ -452,8 +452,7 @@ HashTable* od_wrapper_get_properties(zval *object TSRMLS_DC)
 {
 	od_wrapper_object* od_obj = (od_wrapper_object*)zend_object_store_get_object(object TSRMLS_CC);
 
-	//Does't cache the result, because there are may be modified properties
-	//if(od_obj->zo.properties) return od_obj->zo.properties;
+	if(od_obj->zo.properties) return od_obj->zo.properties;
 
 	OD_HASH_LAZY_INIT(od_obj->zo.properties);
 
