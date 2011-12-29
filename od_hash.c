@@ -77,32 +77,29 @@ void od_hash_deinit (ODHashTable **h_p) {
 
 	efree(h->buckets);
 
+	h->buckets = NULL;
 	h->size = 0;
 	h->used = 0;
 
-	efree((h_p));
+	efree(*h_p);
 }
 
 inline static uint32_t _od_hash_find(ODHashTable *h, const char *key, uint32_t key_len, uint32_t hash) {
 	uint32_t hv;
 	uint32_t size;
+	uint32_t mask;
 	
 	assert(h != NULL);
 	
 	size = h->size;
-	hv = hash & (h->size-1);
+	mask = h->size-1;
+	hv = hash & mask;
 	
 	while (size > 0 &&
 		OD_IS_OCCUPIED(h->buckets[hv]) &&
 		(h->buckets[hv].hash != hash || h->buckets[hv].key_len != key_len  || (!(h->buckets[hv].key == NULL && key==NULL) && (h->buckets[hv].key[0]!=key[0] || memcmp(h->buckets[hv].key, key, key_len) != 0)))) {
 
-#ifdef OD_DEBUG
-		if(memcmp(TKEY,key,key_len)==0) {
-			debug("try pos %u (key: %s len: %u hash: %u) for key: %s len: %u hash: %u", hv, h->buckets[hv].key,h->buckets[hv].key_len,h->buckets[hv].hash,key,key_len,hash);
-		}
-#endif
-
-		hv = (hv + 1) & (h->size-1);
+		hv = (hv + 1) & mask;
 		size--;
 	}
 	
@@ -118,40 +115,7 @@ int od_hash_find(ODHashTable *h, const char *key, uint32_t key_len, uint32_t has
 		*ret_bkt = NULL;
 	}
 
-#ifdef OD_DEBUG
-	check_od_ht(h,"before find");
-#endif
-
 	hv = _od_hash_find(h, key, key_len, hash);
-
-#ifdef OD_DEBUG
-	if(OD_IS_OCCUPIED(h->buckets[hv])) {
-		debug("od_hash_find key '%s' at position %p bucket index: %d value: %s null",h->buckets[hv].key,h->buckets+hv,hv,h->buckets[hv].data == NULL?"is":"no");
-	} else {
-		if(memcmp(TKEY,key,key_len)==0) {
-			//print_od_ht(h,TKEY);
-
-			debug("pos: %d not find key '%s' len %u hash %u",hv,key,key_len,hash);
-			web_debug("pos: %d not find key '%s' len %u hash %u",hv,key,key_len,hash);
-
-			uint32_t size = h->size;
-			uint32_t hv;
-
-			hv = hash & (h->size-1);
-			while(size>0  && OD_IS_OCCUPIED(h->buckets[hv])) {
-
-				debug("check pos: %d key: '%s' len: %u hash: %u",hv,h->buckets[hv].key,h->buckets[hv].key_len,h->buckets[hv].hash);
-
-				hv = (hv + 1) & (h->size-1);
-				size--;
-			}
-		}
-	}
-
-	check_od_ht(h,"after find");
-#endif
-
-
 
 	if (!OD_IS_OCCUPIED(h->buckets[hv]) || h->buckets[hv].data == NULL) {
 		if(ret_bkt) {
@@ -306,22 +270,8 @@ int od_hash_update (ODHashTable *h, const char *key, uint32_t key_len, uint32_t 
 
 	if ((((h->size>>2)<<1) + (h->size>>2)) < h->used + 1) {
 
-#ifdef OD_DEBUG
-		debug("rehash for key '%s'",key);
-		check_od_ht(h,"before rehash");
-#endif
-
 		od_hash_rehash(h);
-
-#ifdef OD_DEBUG
-		check_od_ht(h,"after rehash");
-#endif
-
 	}
-	
-#ifdef OD_DEBUG
-	check_od_ht(h,"update start");
-#endif
 
 	hv = _od_hash_find(h, key, key_len, hash);
 	
@@ -369,39 +319,12 @@ int od_hash_update (ODHashTable *h, const char *key, uint32_t key_len, uint32_t 
 		*ret_bkt = h->buckets + hv;
 	}
 
-#ifdef OD_DEBUG
-	//FIMXE
-	char buf[1024];
-	char kbuf[512];
-	uint32_t i;
-
-	for(i=0;i<key_len;i++) {
-		kbuf[i]=key[i];
-
-		if(kbuf[i]==0) kbuf[i]='0';
-	}
-	kbuf[key_len]=0;
-
-	zval* val = (zval*)data;
-	sprintf(buf,"update hash for key: %s with value: %ld hash: %u at pos %u with hash size %u flag: %x",kbuf,(val && val->type == IS_LONG)?val->value.lval:(-1234),hash,hv,h->size,h->buckets[hv].flag);
-
-	if(memcmp(TKEY,key,key_len)==0) {
-		print_od_ht(h,TKEY "update");
-	}
-
-	//print_od_ht(h,buf);
-
-	debug(buf);
-
-	check_od_ht(h,"update end");
-#endif
-
 	return SUCCESS;
 }
 
 
 int od_hash_remove (ODHashTable *h, const char *key, uint32_t key_len, uint32_t hash) {
-	uint32_t hv;
+	uint32_t hv, mask;
 	uint32_t j, k;
 
 	assert(h != NULL);
@@ -418,15 +341,17 @@ int od_hash_remove (ODHashTable *h, const char *key, uint32_t key_len, uint32_t 
 	OD_HASH_FREE_KEY(h->buckets[hv]);
 	OD_HASH_FREE_VAL(h->buckets[hv]);
 
-	j = (hv + 1) & (h->size-1);
+	mask = h->size-1;
+
+	j = (hv + 1) & mask;
 	while (OD_IS_OCCUPIED(h->buckets[j])) {
-		k = h->buckets[j].hash & (h->size-1);
+		k = h->buckets[j].hash & mask;
 
 		if ((j > hv && (k <= hv || k > j)) || (j < hv && (k <= hv && k > j))) {
 			h->buckets[hv] = h->buckets[j];
 			hv = j;
 		}
-		j = (j + 1) & (h->size-1);
+		j = (j + 1) & mask;
 	}
 
 	OD_HASH_RESET_BKT(h->buckets[hv]);

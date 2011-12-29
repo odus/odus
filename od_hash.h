@@ -37,11 +37,9 @@
 #define OD_IS_OCCUPIED(bkt) OD_TEST_FLAG((bkt).flag,OD_FLAG_OCCUPIED)
 
 
-#define OD_SET_MODIFIED(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_MODIFIED); if(strcmp((bkt).key,TKEY)==0)debug("set key '%s' as modified",(bkt).key);
-
-#define OD_SET_NEW(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_NEW); if(strcmp((bkt).key,TKEY)==0)debug("set key '%s' as new",(bkt).key);
-
-#define OD_SET_SLEEP(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_SLEEP); if(strcmp((bkt).key,TKEY)==0)debug("set key '%s' as sleep",(bkt).key);
+#define OD_SET_MODIFIED(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_MODIFIED);
+#define OD_SET_NEW(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_NEW);
+#define OD_SET_SLEEP(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_SLEEP);
 
 #define OD_SET_PERSIST_KEY(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_PERSIST_KEY)
 #define OD_SET_OCCUPIED(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_OCCUPIED)

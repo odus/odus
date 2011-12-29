@@ -224,37 +224,10 @@ uint8_t check_sleep(zval* obj, od_wrapper_object* od_obj) {
 		INIT_PZVAL(&f);
 		ZVAL_STRINGL(&f, "__sleep", sizeof("__sleep") - 1, 0);
 
-#ifdef OD_DEBUG
-		check_od_ht(od_obj->od_properties,"before call sleep");
-
-		if(strcmp(od_obj->zo.ce->name,"Player")==0) {
-			print_od_ht(od_obj->od_properties,"before call sleep");
-		}
-#endif
-
 		if (call_user_function_ex(CG(function_table), &obj, &f, &h, 0, 0, 1, NULL TSRMLS_CC) == SUCCESS && !EG(exception)) {
 
 			if (h) {
 				if (Z_TYPE_P(h) == IS_ARRAY) {
-
-					if(strcmp(od_obj->zo.ce->name,"Player")==0) {
-						debug("start call __sleep");
-
-						Bucket* p = h->value.ht;
-
-						while(p!=NULL) {
-
-							zval* val = (zval*) p->pDataPtr;
-
-							if(val && val->type == IS_STRING) {
-								debug("sleep key: '%s'",Z_STRVAL_P(val));
-							}
-
-							p = p->pListNext;
-						}
-
-						debug("end call __sleep");
-					}
 
 					has_sleep = 1;
 
@@ -266,14 +239,6 @@ uint8_t check_sleep(zval* obj, od_wrapper_object* od_obj) {
 				}
 			}
 		}
-
-#ifdef OD_DEBUG
-		check_od_ht(od_obj->od_properties,"after call sleep");
-
-		if(strcmp(od_obj->zo.ce->name,"Player")==0) {
-			print_od_ht(od_obj->od_properties,"after call sleep");
-		}
-#endif
 
 		/* cleanup */
 		if (h) {
@@ -308,13 +273,6 @@ void apply_sleep_array(od_wrapper_object* od_obj, HashTable* h) {
 				od_error(E_ERROR,"item of sleep array must be string type");
 			} else {
 
-				#ifdef OD_DEBUG
-				if(memcmp(TKEY,Z_STRVAL_P(data),Z_STRLEN_P(data))==0) {
-					debug("will check for sleep key '%s'",TKEY);
-					web_debug("will check for sleep key '%s'",TKEY);
-				}
-				#endif
-
 				p_hash = zend_get_hash_value(Z_STRVAL_P(data),Z_STRLEN_P(data)+1);
 				o_hash = OD_HASH_VALUE(p_hash);
 
@@ -322,63 +280,16 @@ void apply_sleep_array(od_wrapper_object* od_obj, HashTable* h) {
 					if(bkt) {
 						OD_SET_SLEEP(*bkt);
 
-#ifdef OD_DEBUG
-						if(memcmp(TKEY,Z_STRVAL_P(data),Z_STRLEN_P(data))==0) {
-							debug("key '%s' is sleep",TKEY);
-							web_debug("key '%s' is sleep",TKEY);
-						}
-#endif
 					}
-
-#ifdef OD_DEBUG
-					else {
-						if(memcmp(TKEY,Z_STRVAL_P(data),Z_STRLEN_P(data))==0) {
-							debug("key '%s' is not sleep because bkt is NULL",TKEY);
-							web_debug("key '%s' is not sleep because bkt is NULL",TKEY);
-						}
-					}
-#endif
 				} else {
-
-
-#ifdef OD_DEBUG
-					if(memcmp(TKEY,Z_STRVAL_P(data),Z_STRLEN_P(data))==0) {
-						debug("key '%s' is not found at the first round",TKEY);
-						web_debug("key '%s' is not found at the first round",TKEY);
-					}
-#endif
 
 					if(zend_hash_quick_find(&(od_obj->zo.ce->properties_info),Z_STRVAL_P(data),Z_STRLEN_P(data)+1, p_hash, (void **) &property_info)==SUCCESS) {
 						if(od_hash_find(od_obj->od_properties,property_info->name,property_info->name_length,OD_HASH_VALUE(property_info->h),&bkt)==SUCCESS) {
 							if(bkt) {
 								OD_SET_SLEEP(*bkt);
 
-#ifdef OD_DEBUG
-								if(memcmp(TKEY,Z_STRVAL_P(data),Z_STRLEN_P(data))==0) {
-									debug("key '%s' is sleep",TKEY);
-									web_debug("key '%s' is sleep",TKEY);
-								}
-#endif
-							}
-
-#ifdef OD_DEBUG
-							else {
-								if(memcmp(TKEY,Z_STRVAL_P(data),Z_STRLEN_P(data))==0) {
-									debug("key '%s' is not sleep because bkt is NULL at the second",TKEY);
-									web_debug("key '%s' is not sleep because bkt is NULL at the second",TKEY);
-								}
-							}
-#endif
-						}
-
-#ifdef OD_DEBUG
-						else {
-							if(memcmp(TKEY,Z_STRVAL_P(data),Z_STRLEN_P(data))==0) {
-								debug("key '%s' is not found at the second round",TKEY);
-								web_debug("key '%s' is not found at the second round",TKEY);
 							}
 						}
-#endif
 					}
 				}
 			}
@@ -445,48 +356,6 @@ void deal_with_modified_properties(od_wrapper_object* od_obj, od_igbinary_serial
 
 					if(has_sleep && !OD_IS_SLEEP(*bkt)){
 						pos_info[idx].data = NULL;
-
-#ifdef OD_DEBUG
-						if(memcmp(TKEY,bkt->key,bkt->key_len)==0) {
-
-							char tname[1024];
-
-							web_debug("key '%s' is sleep out",TKEY);
-							debug("key '%s' is sleep out",TKEY);
-
-							//print the hash table status
-
-							debug("\nod_obj->zo.properties start");
-							if(od_obj->zo.properties) {
-								Bucket* p = od_obj->zo.properties->pListHead;
-
-								while(p!=NULL) {
-
-									if(p->nKeyLength>0) {
-										memcpy(tname,p->arKey,p->nKeyLength-1);
-
-										int i;
-
-										for(i=0;i<p->nKeyLength-1;i++) {
-											if(tname[i]==0) {
-												tname[i]='0';
-											}
-										}
-
-										tname[p->nKeyLength-1]=0;
-
-										debug("%s",tname);
-									}
-
-									p = p->pListNext;
-								}
-							}
-							debug("od_obj->zo.properties end\n");
-
-							//print_od_ht(od_obj->od_properties,"od_obj->od_properties");
-						}
-#endif
-
 					} else {
 						pos_info[idx].data = (zval*)bkt->data;
 					}
@@ -559,19 +428,8 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ui
 		}
 	}else{
 
-		//FIXME
-		//print_od_ht(od_obj->od_properties,OD_CLASS_NAME(od_obj));
-
 		uint8_t modified = 0;
 		int num_diff = 0;
-
-#ifdef OD_DEBUG
-
-		if(strcmp(od_obj->zo.ce->name,"Player")==0) {
-			check_od_ht(od_obj->od_properties,"before check status");
-			print_od_ht(od_obj->od_properties,"before check status");
-		}
-#endif
 
 		modified = is_od_wrapper_obj_modified(obj, 0, &num_diff);
 
@@ -592,9 +450,6 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ui
 					return;
 				}
 			}
-
-			//FIXME
-			//print_od_ht(od_obj->od_properties,OD_CLASS_NAME(od_obj));
 
 			if(is_root) {
 				//We need do necessary initialization

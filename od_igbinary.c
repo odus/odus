@@ -15,6 +15,8 @@
 #include "odwrapper.h"
 #include "od_igbinary.h"
 
+static char* EMPTY_STRING="";
+
 extern void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, uint8_t is_root, uint8_t recursive_check);
 
 /* {{{ Serializing functions prototypes */
@@ -1290,7 +1292,12 @@ inline int od_igbinary_unserialize_get_key(od_igbinary_unserialize_data *igsd, c
 				return 1;
 			}
 			break;
-
+		case od_igbinary_type_string_empty:
+		case od_igbinary_type_null:
+			*key_p = EMPTY_STRING;
+			*key_len_p = 0;
+			*key_index_p = 0;
+			break;
 		default:
 			od_error(E_ERROR, "od_igbinary_unserialize_array: unknown key type '%02x', position %zu", key_type, igsd->buffer_offset);
 			return 1;
@@ -1347,19 +1354,6 @@ inline static int od_igbinary_unserialize_array(od_igbinary_unserialize_data *ig
 			ZVAL_NULL(*z);
 			return 1;
 		}
-
-		char tkey[1024];
-		int ti;
-		for(ti=0;ti<key_len;ti++) {
-			if(key[ti]==0){
-				tkey[ti]='0';
-			} else {
-				tkey[ti]=key[ti];
-			}
-		}
-		tkey[key_len]='\0';
-
-		//debug("to be unserialized value for key '%s' len: %d hash: %u", tkey,key_len,key_index);
 
 		ALLOC_INIT_ZVAL(v);
 		if (od_igbinary_unserialize_zval(igsd, &v TSRMLS_CC)) {

@@ -27,9 +27,6 @@
 #include <inttypes.h>
 #include <sys/types.h>
 
-#define TKEY "lastEnergyCheck"
-//#define TKEY "commodities"
-
 // MACRO Definition
 
 // PHP Related Definition
