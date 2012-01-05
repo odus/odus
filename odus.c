@@ -68,7 +68,7 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ui
 
 extern zend_object_handlers od_wrapper_object_handlers;
 
-extern uint8_t is_od_wrapper_obj_modified(zval* obj,uint8_t has_sleep, int* member_num_diff);
+extern uint8_t is_od_wrapper_obj_modified(od_wrapper_object* od_obj,uint8_t has_sleep, int* member_num_diff);
 
 extern void search_member(od_wrapper_object* od_obj, const char* member_name, uint32_t member_len, uint32_t hash, ODBucket** ret_bkt, member_pos* ret_pos);
 
@@ -431,7 +431,7 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ui
 		uint8_t modified = 0;
 		int num_diff = 0;
 
-		modified = is_od_wrapper_obj_modified(obj, 0, &num_diff);
+		modified = is_od_wrapper_obj_modified(od_obj, 0, &num_diff);
 
 		debug("od_serialize: class '%s' is %s modified",OD_CLASS_NAME(od_obj),modified?"":"not");
 
@@ -443,13 +443,17 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ui
 			uint8_t has_sleep = check_sleep(obj, od_obj);
 
 			if(has_sleep) {
-				modified = is_od_wrapper_obj_modified(obj,1,&num_diff);
+				modified = is_od_wrapper_obj_modified(od_obj,1,&num_diff);
 
 				if(!modified) {
 					deal_with_unmodified_object(igsd, od_obj, is_root);
 					return;
 				}
 			}
+
+			//TODO
+			//will reduce default properties here
+
 
 			if(is_root) {
 				//We need do necessary initialization

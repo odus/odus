@@ -82,10 +82,10 @@ AR="ar"
 AR_FLAGS="cru"
 
 # A C compiler.
-LTCC="cc"
+LTCC="gcc"
 
 # A language-specific compiler.
-CC="cc"
+CC="gcc"
 
 # Is the compiler the GNU C compiler?
 with_gcc=yes
@@ -325,7 +325,7 @@ link_all_deplibs=unknown
 sys_lib_search_path_spec="/lib64 /usr/lib64 /usr/local/lib64"
 
 # Run-time system search path for libraries
-sys_lib_dlsearch_path_spec="/lib64 /usr/lib64 include ld.so.conf.d/*.conf "
+sys_lib_dlsearch_path_spec="/lib64 /usr/lib64 /usr/local/lib64 include ld.so.conf.d/*.conf "
 
 # Fix the shell variable $srcfile for the compiler.
 fix_srcfile_path=""

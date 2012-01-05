@@ -123,7 +123,7 @@ static void get_all_members(od_wrapper_object* od_obj);
 
 static int array_contains_object(zval* val);
 // Could not be static
-uint8_t is_od_wrapper_obj_modified(zval* obj, uint8_t has_sleep, int* member_num_diff);
+uint8_t is_od_wrapper_obj_modified(od_wrapper_object* od_obj, uint8_t has_sleep, int* member_num_diff);
 
 static void od_wrapper_modify_property(zval** variable_ptr, zval* value, zend_property_info *property_info, od_wrapper_object* od_obj);
 
@@ -1502,16 +1502,14 @@ int array_contains_object(zval* val)
 	return 0;
 }
 
-uint8_t is_od_wrapper_obj_modified(zval* obj,uint8_t has_sleep, int* member_num_diff)
+uint8_t is_od_wrapper_obj_modified(od_wrapper_object* od_obj,uint8_t has_sleep, int* member_num_diff)
 {
 	if(member_num_diff) *member_num_diff=0;
 
-	if(!obj) {
-		debug("return because obj is null");
+	if(!od_obj) {
+		debug("return because od_obj is null");
 		return 0;
 	}
-
-	od_wrapper_object* od_obj = (od_wrapper_object*)zend_object_store_get_object(obj TSRMLS_CC);
 
 	ODHashTable* ht = od_obj->od_properties;
 	ODBucket* bkt = NULL;
@@ -1569,7 +1567,9 @@ uint8_t is_od_wrapper_obj_modified(zval* obj,uint8_t has_sleep, int* member_num_
 
 					if (IS_OD_WRAPPER(val)) {
 
-						if(!is_od_wrapper_obj_modified(val,0,NULL)) {
+						od_wrapper_object* sub_od_obj = (od_wrapper_object*)zend_object_store_get_object(val);
+
+						if(!is_od_wrapper_obj_modified(sub_od_obj,0,NULL)) {
 
 							OD_RESET_MODIFIED(*bkt);
 

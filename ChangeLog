@@ -1,0 +1,13 @@
+* 1.0.5
+	Optimize is_od_wrapper_obj_modified
+* 1.0.4
+	Allow empty string in array key
+* 1.0.3
+	Cache the result of get_properties
+	This is the version for City TC produciton launch
+* 1.0.2
+	Fix a bug - change ! to ~
+* 1.0.1
+	Refactor ODUS -- Use ODHashTable
+* 1.0.0
+	The first version of ODUS

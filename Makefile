@@ -23,11 +23,10 @@ libdir = ${exec_prefix}/lib
 prefix = /home/xma/php
 phplibdir = /home/xma/work/svn/optimization/extension/odus/modules
 phpincludedir = /home/xma/php/include/php
-CC = cc
-#CFLAGS = -g -O2
-CFLAGS = -g
+CC = gcc
+CFLAGS = -g -O2
 CFLAGS_CLEAN = $(CFLAGS)
-CPP = cc -E
+CPP = gcc -E
 CPPFLAGS = -DHAVE_CONFIG_H
 CXX =
 CXXFLAGS =
@@ -84,7 +83,7 @@ install-modules: build-modules
 	@test -d modules && \
 	$(mkinstalldirs) $(INSTALL_ROOT)$(EXTENSION_DIR)
 	@echo "Installing shared extensions:     $(INSTALL_ROOT)$(EXTENSION_DIR)/"
-	@rm -f modules/*.la >/dev/null 2>&1
+	#@rm -f modules/*.la >/dev/null 2>&1
 	@$(INSTALL) modules/* $(INSTALL_ROOT)$(EXTENSION_DIR)
 
 install-headers:
@@ -126,7 +125,7 @@ PHP_TEST_SHARED_EXTENSIONS =  ` \
 	fi`
 
 test: all
-	-@if test ! -z "$(PHP_EXECUTABLE)" && test -x "$(PHP_EXECUTABLE)" && cp -r $(EXTENSION_DIR)/* $(top_builddir)/modules/; then \
+	-@if test ! -z "$(PHP_EXECUTABLE)" && test -x "$(PHP_EXECUTABLE)"; then \
 		TEST_PHP_EXECUTABLE=$(PHP_EXECUTABLE) \
 		TEST_PHP_SRCDIR=$(top_srcdir) \
 		CC="$(CC)" \
@@ -146,7 +145,7 @@ test: all
 		TEST_PHP_EXECUTABLE=$(top_builddir)/$(SAPI_CLI_PATH) \
 		TEST_PHP_SRCDIR=$(top_srcdir) \
 		CC="$(CC)" \
-			$(top_builddir)/$(SAPI_CLI_PATH) -n -c $(top_builddir)/tmp-php.ini $(PHP_TEST_SETTINGS) $(top_srcdir)/run-tests.php -n -c $(top_builddir)/tmp-php.ini -d extension_dir=$(top_builddir)/modules/ $(PHP_TEST_SHARED_EXTENSIONS) $(TESTS); \
+			$(top_builddir)/$(SAPI_CLI_PATH) -n -c /home/xma/php/etc/php.ini $(PHP_TEST_SETTINGS) $(top_srcdir)/run-tests.php -n -c /home/xma/php/etc/php.ini -d extension_dir=$(top_builddir)/modules/ $(PHP_TEST_SHARED_EXTENSIONS) $(TESTS); \
 	else \
 		echo "ERROR: Cannot run tests without CLI sapi."; \
 	fi
@@ -158,6 +157,8 @@ clean:
 	find . -name \*.so | xargs rm -f
 	find . -name .libs -a -type d|xargs rm -rf
 	rm -f libphp$(PHP_MAJOR_VERSION).la $(SAPI_CLI_PATH) $(OVERALL_TARGET) modules/* libs/*
+	cp -r /home/xma/php/modules/*.so modules/
+	rm -f modules/odus.so
 
 distclean: clean
 	rm -f config.cache config.log config.status Makefile.objects Makefile.fragments libtool main/php_config.h stamp-h php5.spec sapi/apache/libphp$(PHP_MAJOR_VERSION).module buildmk.stamp

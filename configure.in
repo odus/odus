@@ -23,7 +23,7 @@ test -z "$CFLAGS" && auto_cflags=1
 abs_srcdir=`(cd $srcdir && pwd)`
 abs_builddir=`pwd`
 
-AC_PROG_CC([cc gcc])
+AC_PROG_CC([gcc cc])
 PHP_DETECT_ICC
 PHP_DETECT_SUNCC
 AC_PROG_CC_C_O
