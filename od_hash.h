@@ -36,6 +36,7 @@
 #define OD_IS_PERSIST_KEY(bkt) OD_TEST_FLAG((bkt).flag,OD_FLAG_PERSIST_KEY)
 #define OD_IS_OCCUPIED(bkt) OD_TEST_FLAG((bkt).flag,OD_FLAG_OCCUPIED)
 
+#define OD_IS_UNSET(bkt) (OD_IS_OCCUPIED(bkt) && (bkt).data==NULL)
 
 #define OD_SET_MODIFIED(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_MODIFIED);
 #define OD_SET_NEW(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_NEW);

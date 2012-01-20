@@ -1,3 +1,15 @@
+* 1.0.6
+	Reduce call to array_contains_object
+	Fix bug about OD_SET_NEW in wrong scenarios
+		For example, let's look at the code snippet:
+			$o = new ODWrapper($binary);
+			unset($o->existed_value);
+			$o->existed_value = "new_value"; //ODUS will set the status of this key to NEW
+							 //it is wrong and fixed this time
+			unset($o->existed_value);
+			od_serialize($o); // ODUS will take "existed_value" as a unset new key 
+			// so ODUS will not save the change to this key 
+			// and thus the key-value pair will not be removed
 * 1.0.5
 	Remove files which needn't to be versioned
 * 1.0.5

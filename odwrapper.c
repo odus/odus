@@ -572,7 +572,7 @@ zval *od_wrapper_read_property(zval *object, zval *member, int type TSRMLS_DC)
 				}
 				zval_ptr_dtor(&object);
 			} else {
-				if((*retval)->type == IS_ARRAY && array_contains_object(*retval)) {
+				if((*retval)->type == IS_ARRAY && !OD_IS_MODIFIED(*bkt) && array_contains_object(*retval)) {
 					OD_SET_MODIFIED(*bkt);
 				}
 			}
@@ -586,7 +586,7 @@ zval *od_wrapper_read_property(zval *object, zval *member, int type TSRMLS_DC)
 				{
 					retval = &EG(uninitialized_zval_ptr);
 				} else {
-					if((*retval)->type == IS_ARRAY && array_contains_object(*retval)) {
+					if((*retval)->type == IS_ARRAY && !OD_IS_MODIFIED(*bkt) && array_contains_object(*retval)) {
 						OD_SET_MODIFIED(*bkt);
 					}
 				}
@@ -644,6 +644,8 @@ zval **od_wrapper_get_property_ptr_ptr(zval *object, zval *member TSRMLS_DC)
 		zval *new_zval;
 		zend_guard *guard;
 
+		bool is_unset = bkt && OD_IS_UNSET(*bkt);
+
 		if (!zobj->ce->__get ||
 			od_get_property_guard(zobj, property_info, member, &guard) != SUCCESS ||
 			(property_info && guard->in_get)) {
@@ -659,10 +661,9 @@ zval **od_wrapper_get_property_ptr_ptr(zval *object, zval *member TSRMLS_DC)
 
 					OD_UPDATE_PROPERTY(1,new_zval,&bkt);
 
-					if(bkt) {
+					if(bkt && !is_unset) {
 						OD_SET_NEW(*bkt);
 					}
-
 				} else {
 					OD_SET_MODIFIED(*bkt);
 				}
@@ -675,7 +676,7 @@ zval **od_wrapper_get_property_ptr_ptr(zval *object, zval *member TSRMLS_DC)
 
 				OD_UPDATE_PROPERTY(1,new_zval,&bkt);
 
-				if(bkt) {
+				if(bkt && !is_unset) {
 					OD_SET_NEW(*bkt);
 				}
 			}
@@ -737,6 +738,8 @@ void od_wrapper_write_property(zval *object, zval *member, zval *value TSRMLS_DC
 		}
 	} else {
 
+		bool is_unset = bkt && OD_IS_UNSET(*bkt);
+
 		OD_SEARCH_PROPERTY(variable_ptr);
 
 		if(variable_ptr!=NULL && *variable_ptr!=NULL) {
@@ -771,7 +774,7 @@ void od_wrapper_write_property(zval *object, zval *member, zval *value TSRMLS_DC
 
 				OD_UPDATE_PROPERTY(1,value,&bkt);
 
-				if(bkt) {
+				if(bkt && !is_unset) {
 					OD_SET_NEW(*bkt);
 				}
 			}
@@ -927,7 +930,7 @@ int od_wrapper_has_property(zval *object, zval *member, int has_set_exists TSRML
 		OD_SET_RETVAL(value);
 
 		if(searched && value && *value) {
-			if((*value)->type == IS_ARRAY && array_contains_object(*value)) {
+			if((*value)->type == IS_ARRAY && !OD_IS_MODIFIED(*bkt) && array_contains_object(*value)) {
 				OD_SET_MODIFIED(*bkt);
 			}
 		}
@@ -1374,7 +1377,7 @@ int search_property(od_wrapper_object* od_obj,zend_property_info *property_info,
 
 		if(*ret_bkt) {
 			// the property is unset
-			if(OD_IS_OCCUPIED(**ret_bkt) && (*ret_bkt)->data == NULL) {
+			if(OD_IS_UNSET(**ret_bkt)) {
 				*ret_bkt = NULL;
 				return FAILURE;
 			}
@@ -1451,7 +1454,7 @@ void get_all_members(od_wrapper_object* od_obj)
 			od_wrapper_skip_value(igsd);
 		} else {
 
-			if(bkt && OD_IS_OCCUPIED(*bkt) && bkt->data == NULL) {
+			if(bkt && OD_IS_UNSET(*bkt)) {
 
 				zend_hash_del_key_or_index(od_obj->zo.properties,name,len+1,p_hash,HASH_DEL_INDEX);
 
