@@ -1,4 +1,6 @@
 * 1.0.5
+	Remove files which needn't to be versioned
+* 1.0.5
 	Optimize is_od_wrapper_obj_modified
 * 1.0.4
 	Allow empty string in array key
