@@ -112,6 +112,8 @@ static int od_wrapper_compare_objects(zval *o1, zval *o2 TSRMLS_DC);
 static zend_function *od_wrapper_get_method(zval **object_ptr, char *method_name, int method_len TSRMLS_DC);
 // Static Utilities Definition
 
+static inline uint8_t is_default(ODBucket* bkt, HashTable* ht);
+
 static inline void od_wrapper_lazy_init(zval* obj, od_wrapper_object* od_obj);
 
 static zval* od_wrapper_unserialize(od_igbinary_unserialize_data *igsd);
@@ -968,6 +970,53 @@ zend_function *od_wrapper_get_method(zval **object_ptr, char *method_name, int m
 }
 
 // Static Utilities Definition
+
+uint8_t is_default(ODBucket* bkt, HashTable* ht)
+{
+	//don't check inputs
+
+	if(bkt->data == NULL) {
+		return 0;
+	}
+
+	zval* val = (zval*)(bkt->data);
+
+	if(val->type == IS_OBJECT || val->type == IS_ARRAY ) {
+		return 0;
+	}
+
+	zval** retval_p = NULL;
+
+	if(zend_hash_find(ht, (char*)(bkt->key), bkt->key_len + 1, (void**)&retval_p) == FAILURE) {
+		return 0;
+	} else {
+		if(retval_p && *retval_p) {
+			zval* dval = *retval_p;
+
+			if(val->type == dval->type) {
+				switch(val->type) {
+				case IS_NULL:
+					return 1;
+				case IS_BOOL:
+				case IS_LONG:
+					return Z_LVAL_P(val) == Z_LVAL_P(dval);
+				case IS_DOUBLE:
+					return Z_DVAL_P(val) == Z_DVAL_P(dval);
+				case IS_STRING:
+					return Z_STRLEN_P(val) == Z_STRLEN_P(dval) && (Z_STRLEN_P(val)==0 || (Z_STRVAL_P(val)[0]==Z_STRVAL_P(dval)[0] && strncmp(Z_STRVAL_P(val),Z_STRVAL_P(dval),Z_STRLEN_P(val))==0));
+				default:
+					return 0;
+				}
+			} else {
+				return 0;
+			}
+		} else {
+			return 0;
+		}
+	}
+
+	return 0;
+}
 
 inline void od_wrapper_lazy_init(zval* obj, od_wrapper_object* od_obj)
 {

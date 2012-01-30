@@ -1,0 +1,27 @@
+#!/bin/sh
+
+set -e
+
+[ $# -ne 2 ] && { echo "usage: $0 src des"; exit 1; }
+
+src=$1
+des=$2
+
+[ ! -f $src ] && { echo "$src doesn't exist"; exit 1; }
+
+a=`grep -o "<[^>]\+>" $src  | sort | uniq`
+
+cp $src $des
+
+for v in $a
+do
+b=${v:1:$((${#v}-2))}
+
+c=`eval echo "$"$b`
+
+sed "s^$v^$c^" $des > $des.$$
+
+rm $des
+mv $des.$$ $des
+
+done

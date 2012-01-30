@@ -364,8 +364,7 @@ void deal_with_modified_properties(od_wrapper_object* od_obj, od_igbinary_serial
 				}
 			}
 
-			//need quick sort pos_info
-			//just use select sort now
+			//use select sort now because it is faster than quick sort when the number of items is small
 			uint32_t k,j;
 
 			member_pos tmp_pos;

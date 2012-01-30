@@ -1,6 +1,11 @@
-* 1.0.6
-	Reduce call to array_contains_object
-	Fix bug about OD_SET_NEW in wrong scenarios
+* Mon Jan 30 2012 Xiaolong Ma<xma@zynga.com>
+  version 1.0.7
+- Add script to build rpm package
+- Partial code for removing default properties
+* Fri Jan 20 2012 Xiaolong Ma<xma@zynga.com>
+  version 1.0.6
+- Reduce call to array_contains_object
+- Fix bug about OD_SET_NEW in wrong scenarios
 		For example, let's look at the code snippet:
 			$o = new ODWrapper($binary);
 			unset($o->existed_value);
@@ -10,18 +15,22 @@
 			od_serialize($o); // ODUS will take "existed_value" as a unset new key 
 			// so ODUS will not save the change to this key 
 			// and thus the key-value pair will not be removed
-* 1.0.5
-	Remove files which needn't to be versioned
-* 1.0.5
-	Optimize is_od_wrapper_obj_modified
-* 1.0.4
-	Allow empty string in array key
-* 1.0.3
-	Cache the result of get_properties
-	This is the version for City TC produciton launch
-* 1.0.2
-	Fix a bug - change ! to ~
-* 1.0.1
-	Refactor ODUS -- Use ODHashTable
-* 1.0.0
-	The first version of ODUS
+* Thu Jan 05 2012 Xiaolong Ma<xma@zynga.com>
+  version 1.0.5
+- Remove files which needn't to be versioned
+- Optimize is_od_wrapper_obj_modified
+* Wed Jan 04 2012 Xiaolong Ma<xma@zynga.com>
+  version 1.0.4
+- Allow empty string in array key
+* Wed Nov 30 2011 Xiaolong Ma<xma@zynga.com>
+  version 1.0.3
+- Cache the result of get_properties
+* Fri Nov 25 2011 Xiaolong Ma<xma@zynga.com>
+  version 1.0.2
+- Fix a bug - change ! to ~
+* Tue Nov 15 2011 Xiaolong Ma<xma@zynga.com>
+  version 1.0.1
+- Refactor ODUS -- Use ODHashTable
+* Fri Nov 11 2011 Xiaolong Ma<xma@zynga.com>
+  version 1.0.0
+- The first version of ODUS
