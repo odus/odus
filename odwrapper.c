@@ -1577,67 +1577,69 @@ uint8_t is_od_wrapper_obj_modified(od_wrapper_object* od_obj,uint8_t has_sleep, 
 	uint8_t modified = 0;
 	uint32_t i;
 
-	for(i=0; i< ht->size; i++) {
-		bkt = ht->buckets + i;
-		if(OD_IS_OCCUPIED(*bkt)){
+	if (ht->used > 0) {
+		for (i = 0; i < ht->size; i++) {
+			bkt = ht->buckets + i;
+			if (OD_IS_OCCUPIED(*bkt)) {
 
-			val = (zval*)(bkt->data);
+				val = (zval*) (bkt->data);
 
-			if(val==NULL) {
-				//unset value
-				if(!OD_IS_NEW(*bkt) && OD_IS_MODIFIED(*bkt)) {
+				if (val == NULL) {
+					//unset value
+					if (!OD_IS_NEW(*bkt) && OD_IS_MODIFIED(*bkt)) {
 
-					debug("check -> existed key %s is unset", bkt->key);
-
-					modified = 1;
-
-					num_diff --;
-				}
-
-			} else {
-
-				if(has_sleep && !OD_IS_SLEEP(*bkt)) {
-					if(!OD_IS_NEW(*bkt)) {
-
-						debug("check -> existed key %s is sleep out", bkt->key);
+						debug("check -> existed key %s is unset", bkt->key);
 
 						modified = 1;
-						OD_SET_MODIFIED(*bkt);
 
-						num_diff --;
+						num_diff--;
 					}
 
 				} else {
-					if(OD_IS_NEW(*bkt)) {
 
-						debug("check -> key %s is new", bkt->key);
+					if (has_sleep && !OD_IS_SLEEP(*bkt)) {
+						if (!OD_IS_NEW(*bkt)) {
 
-						modified = 1;
+							debug("check -> existed key %s is sleep out", bkt->key);
 
-						num_diff ++;
-					}
-
-					if (IS_OD_WRAPPER(val)) {
-
-						od_wrapper_object* sub_od_obj = (od_wrapper_object*)zend_object_store_get_object(val);
-
-						if(!is_od_wrapper_obj_modified(sub_od_obj,0,NULL)) {
-
-							OD_RESET_MODIFIED(*bkt);
-
-						} else {
 							modified = 1;
 							OD_SET_MODIFIED(*bkt);
+
+							num_diff--;
 						}
+
 					} else {
-						if(OD_IS_MODIFIED(*bkt) || val->type == IS_OBJECT) {
+						if (OD_IS_NEW(*bkt)) {
+
+							debug("check -> key %s is new", bkt->key);
 
 							modified = 1;
-							OD_SET_MODIFIED(*bkt);
+
+							num_diff++;
+						}
+
+						if (IS_OD_WRAPPER(val)) {
+
+							od_wrapper_object* sub_od_obj = (od_wrapper_object*) zend_object_store_get_object(val);
+
+							if (!is_od_wrapper_obj_modified(sub_od_obj, 0, NULL)) {
+
+								OD_RESET_MODIFIED(*bkt);
+
+							} else {
+								modified = 1;
+								OD_SET_MODIFIED(*bkt);
+							}
+						} else {
+							if (OD_IS_MODIFIED(*bkt) || val->type == IS_OBJECT) {
+
+								modified = 1;
+								OD_SET_MODIFIED(*bkt);
+							}
+
 						}
 
 					}
-
 				}
 			}
 		}

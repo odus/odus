@@ -398,6 +398,9 @@ void deal_with_modified_properties(od_wrapper_object* od_obj, od_igbinary_serial
 
 				local_igsd->buffer_offset = pos_info[i].val_end_offset;
 			}
+
+			efree(pos_info);
+			pos_info = NULL;
 		}
 	}
 
@@ -452,6 +455,14 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ui
 
 			//TODO
 			//will reduce default properties here
+			//There are multiple choices for removing default properties:
+			// normal
+			// medium
+			// agressive
+			//There is time and storage tradeoff
+			// removing more default properties we can save more storage but need more cpu time
+
+			// removing default properties is optional
 
 
 			if(is_root) {
@@ -505,26 +516,21 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ui
 
 				int new_member_num = member_num + num_diff;
 
-				if(new_member_num == member_num) {
-					od_igbinary_serialize_memcpy(igsd,local_igsd.buffer, local_len_info_offset);
+				od_igbinary_serialize_memcpy(igsd,local_igsd.buffer, local_array_info_offset);
+
+				debug("new meber num is %d", new_member_num);
+
+				assert(new_member_num>=0);
+
+				if (new_member_num <= 0xff) {
+					od_igbinary_serialize8(igsd, od_igbinary_type_array8 TSRMLS_CC);
+					od_igbinary_serialize8(igsd, new_member_num TSRMLS_CC);
+				} else if (new_member_num <= 0xffff) {
+					od_igbinary_serialize8(igsd, od_igbinary_type_array16 TSRMLS_CC);
+					od_igbinary_serialize16(igsd, new_member_num TSRMLS_CC);
 				} else {
-
-					od_igbinary_serialize_memcpy(igsd,local_igsd.buffer, local_array_info_offset);
-
-					debug("new meber num is %d",new_member_num);
-
-					assert(new_member_num>=0);
-
-					if (new_member_num <= 0xff) {
-						od_igbinary_serialize8(igsd, od_igbinary_type_array8 TSRMLS_CC);
-						od_igbinary_serialize8(igsd, new_member_num TSRMLS_CC);
-					} else if (new_member_num <= 0xffff) {
-						od_igbinary_serialize8(igsd, od_igbinary_type_array16 TSRMLS_CC);
-						od_igbinary_serialize16(igsd, new_member_num TSRMLS_CC);
-					} else {
-						od_igbinary_serialize8(igsd, od_igbinary_type_array32 TSRMLS_CC);
-						od_igbinary_serialize32(igsd, new_member_num TSRMLS_CC);
-					}
+					od_igbinary_serialize8(igsd, od_igbinary_type_array32 TSRMLS_CC);
+					od_igbinary_serialize32(igsd, new_member_num TSRMLS_CC);
 				}
 			} else {
 				od_igbinary_serialize_memcpy(igsd,local_igsd.buffer, local_len_info_offset);
