@@ -112,7 +112,7 @@ static int od_wrapper_compare_objects(zval *o1, zval *o2 TSRMLS_DC);
 static zend_function *od_wrapper_get_method(zval **object_ptr, char *method_name, int method_len TSRMLS_DC);
 // Static Utilities Definition
 
-static inline uint8_t is_default(ODBucket* bkt, HashTable* ht);
+static inline uint8_t is_default(char* key, uint len, ulong hash, zval* val, HashTable* ht);
 
 static inline void od_wrapper_lazy_init(zval* obj, od_wrapper_object* od_obj);
 
@@ -971,15 +971,13 @@ zend_function *od_wrapper_get_method(zval **object_ptr, char *method_name, int m
 
 // Static Utilities Definition
 
-uint8_t is_default(ODBucket* bkt, HashTable* ht)
+uint8_t is_default(char* key, uint len, ulong hash, zval* val, HashTable* ht)
 {
 	//don't check inputs
 
-	if(bkt->data == NULL) {
+	if(val == NULL) {
 		return 0;
 	}
-
-	zval* val = (zval*)(bkt->data);
 
 	if(val->type == IS_OBJECT || val->type == IS_ARRAY ) {
 		return 0;
@@ -987,7 +985,7 @@ uint8_t is_default(ODBucket* bkt, HashTable* ht)
 
 	zval** retval_p = NULL;
 
-	if(zend_hash_find(ht, (char*)(bkt->key), bkt->key_len + 1, (void**)&retval_p) == FAILURE) {
+	if(zend_hash_quick_find(ht, key, len + 1, hash, (void**)&retval_p) == FAILURE) {
 		return 0;
 	} else {
 		if(retval_p && *retval_p) {

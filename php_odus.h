@@ -43,15 +43,9 @@ PHP_FUNCTION(od_overwrite_function);
 
 #define OD_VERSION "1.0.7"
 
-/* 
-  	Declare any global variables you may need between the BEGIN
-	and END macros here:     
-
 ZEND_BEGIN_MODULE_GLOBALS(odus)
-	long  global_value;
-	char *global_string;
+	zend_bool remove_default;
 ZEND_END_MODULE_GLOBALS(odus)
-*/
 
 /* In every utility function you add that needs to use variables 
    in php_odus_globals, call TSRMLS_FETCH(); after declaring other 

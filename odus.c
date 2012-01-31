@@ -16,12 +16,13 @@
 #include "ext/standard/php_var.h"
 #include "ext/standard/php_smart_str.h"
 
-/* If you declare any globals in php_odus.h uncomment this:
-ZEND_DECLARE_MODULE_GLOBALS(odus)
-*/
 
-/* True global resources - no need for thread safety here */
-static int le_odus;
+ZEND_DECLARE_MODULE_GLOBALS(odus)
+
+static void php_odus_init_globals(zend_odus_globals* odus_globals TSRMLS_DC)
+{
+	odus_globals->remove_default = 1;
+}
 
 /* {{{ odus_functions[]
  *
@@ -86,34 +87,17 @@ void od_overwrite_function(char* old, char* new) {
 	}
 }
 
-/* {{{ PHP_INI
- */
-/* Remove comments and fill if you need to have entries in php.ini
 PHP_INI_BEGIN()
-    STD_PHP_INI_ENTRY("odus.global_value",      "42", PHP_INI_ALL, OnUpdateLong, global_value, zend_odus_globals, odus_globals)
-    STD_PHP_INI_ENTRY("odus.global_string", "foobar", PHP_INI_ALL, OnUpdateString, global_string, zend_odus_globals, odus_globals)
+    STD_PHP_INI_BOOLEAN("odus.remove_default",      "1",    PHP_INI_SYSTEM, OnUpdateBool,              remove_default,         zend_odus_globals, odus_globals)
 PHP_INI_END()
-*/
-/* }}} */
-
-/* {{{ php_odus_init_globals
- */
-/* Uncomment this function if you have INI entries
-static void php_odus_init_globals(zend_odus_globals *odus_globals)
-{
-	odus_globals->global_value = 0;
-	odus_globals->global_string = NULL;
-}
-*/
-/* }}} */
 
 /* {{{ PHP_MINIT_FUNCTION
  */
 PHP_MINIT_FUNCTION(odus)
 {
-	/* If you have INI entries, uncomment these lines 
-	REGISTER_INI_ENTRIES();
-	*/
+    ZEND_INIT_MODULE_GLOBALS(odus, php_odus_init_globals, NULL);
+
+    REGISTER_INI_ENTRIES();
 
 	od_wrapper_init(TSRMLS_C);
 
@@ -178,6 +162,7 @@ PHP_MINFO_FUNCTION(odus)
 	}
 	php_info_print_table_end();
 
+    DISPLAY_INI_ENTRIES();
 }
 /* }}} */
 

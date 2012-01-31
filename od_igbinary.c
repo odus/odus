@@ -531,7 +531,7 @@ inline int od_igbinary_serialize_array(od_igbinary_serialize_data *igsd, zval *z
 				od_igbinary_serialize_string(igsd, key, key_len-1 TSRMLS_CC);
 				break;
 			default:
-				od_error(E_ERROR, "od_igbinary_serialize_array: key is not string nor array");
+				od_error(E_ERROR, "od_igbinary_serialize_array: key is not string nor long");
 				/* not reached */
 				return 1;
 		}
