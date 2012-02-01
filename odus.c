@@ -293,7 +293,7 @@ void deal_with_new_properties(od_wrapper_object* od_obj, od_igbinary_serialize_d
 	for(i=0;i<ht->size;i++) {
 		bkt=ht->buckets+i;
 
-		if(OD_IS_OCCUPIED(*bkt) && OD_IS_NEW(*bkt) && bkt->data!=NULL && (!has_sleep || OD_IS_SLEEP(*bkt))) {
+		if(OD_IS_OCCUPIED(*bkt) && OD_IS_NEW(*bkt) && bkt->data!=NULL && (!has_sleep || OD_IS_SLEEP(*bkt)) && !(ODUS_G(remove_default) && !OD_IS_MODIFIED(*bkt) && OD_IS_DEFAULT(*bkt))) {
 
 			debug("key %s is new for class %s", bkt->key?bkt->key:"null", OD_CLASS_NAME(od_obj));
 

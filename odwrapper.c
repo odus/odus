@@ -9,6 +9,7 @@
 #include "od_hash.h"
 #include "od_igbinary.h"
 
+ZEND_EXTERN_MODULE_GLOBALS(odus);
 
 void debug_igsd(od_igbinary_unserialize_data* igsd) {
 	debug_buffer(igsd->buffer, igsd->buffer_size, igsd->buffer_offset);
@@ -1453,6 +1454,7 @@ int search_property(od_wrapper_object* od_obj,zend_property_info *property_info,
 
 				if(ret_bkt && *ret_bkt) {
 					OD_SET_NEW(**ret_bkt);
+					OD_SET_DEFAULT(**ret_bkt);
 				}
 			}
 		}
@@ -1605,7 +1607,7 @@ uint8_t is_od_wrapper_obj_modified(od_wrapper_object* od_obj,uint8_t has_sleep, 
 						}
 
 					} else {
-						if (OD_IS_NEW(*bkt)) {
+						if (OD_IS_NEW(*bkt) && !(ODUS_G(remove_default) && !OD_IS_MODIFIED(*bkt) && OD_IS_DEFAULT(*bkt))) {
 
 							debug("check -> key %s is new", bkt->key);
 

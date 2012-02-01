@@ -21,6 +21,7 @@
 #define OD_FLAG_MODIFIED 	0x01
 #define OD_FLAG_NEW 		0x02
 #define OD_FLAG_SLEEP 		0x04
+#define OD_FLAG_DEFAULT		0x08
 
 #define OD_FLAG_PERSIST_KEY 0x40
 #define OD_FLAG_OCCUPIED 	0x80
@@ -32,15 +33,17 @@
 #define OD_IS_MODIFIED(bkt) OD_TEST_FLAG((bkt).flag,OD_FLAG_MODIFIED)
 #define OD_IS_NEW(bkt) OD_TEST_FLAG((bkt).flag,OD_FLAG_NEW)
 #define OD_IS_SLEEP(bkt) OD_TEST_FLAG((bkt).flag,OD_FLAG_SLEEP)
+#define OD_IS_DEFAULT(bkt) OD_TEST_FLAG((bkt).flag,OD_FLAG_DEFAULT)
 
 #define OD_IS_PERSIST_KEY(bkt) OD_TEST_FLAG((bkt).flag,OD_FLAG_PERSIST_KEY)
 #define OD_IS_OCCUPIED(bkt) OD_TEST_FLAG((bkt).flag,OD_FLAG_OCCUPIED)
 
 #define OD_IS_UNSET(bkt) (OD_IS_OCCUPIED(bkt) && (bkt).data==NULL)
 
-#define OD_SET_MODIFIED(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_MODIFIED);
-#define OD_SET_NEW(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_NEW);
-#define OD_SET_SLEEP(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_SLEEP);
+#define OD_SET_MODIFIED(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_MODIFIED)
+#define OD_SET_NEW(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_NEW)
+#define OD_SET_SLEEP(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_SLEEP)
+#define OD_SET_DEFAULT(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_DEFAULT)
 
 #define OD_SET_PERSIST_KEY(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_PERSIST_KEY)
 #define OD_SET_OCCUPIED(bkt) OD_SET_FLAG((bkt).flag,OD_FLAG_OCCUPIED)
@@ -48,6 +51,7 @@
 #define OD_RESET_MODIFIED(bkt) OD_RESET_FLAG((bkt).flag,OD_FLAG_MODIFIED)
 #define OD_RESET_NEW(bkt) OD_RESET_FLAG((bkt).flag,OD_FLAG_NEW)
 #define OD_RESET_SLEEP(bkt) OD_RESET_FLAG((bkt).flag,OD_FLAG_SLEEP)
+#define OD_RESET_DEFAULT(bkt) OD_RESET_FLAG((bkt).flag,OD_FLAG_DEFAULT)
 
 #define OD_RESET_PERSIST_KEY(bkt) OD_RESET_FLAG((bkt).flag,OD_FLAG_PERSIST_KEY)
 #define OD_RESET_OCCUPIED(bkt) OD_RESET_FLAG((bkt).flag,OD_FLAG_OCCUPIED)
