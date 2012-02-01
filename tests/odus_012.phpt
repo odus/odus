@@ -2,6 +2,8 @@
 Check for od_serialize / od_unserialize -- sleep 
 --SKIPIF--
 <?php if (!extension_loaded("odus")) print "skip"; ?>
+--INI--
+odus.remove_default=0
 --FILE--
 <?php 
 

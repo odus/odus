@@ -160,7 +160,7 @@ inline int od_igbinary_unserialize_skip_key(od_igbinary_unserialize_data *igsd);
 
 inline int od_igbinary_serialize_value_len(od_igbinary_serialize_data *igsd, uint32_t len, uint32_t pos TSRMLS_DC);
 
-inline int od_igbinary_serialize_array(od_igbinary_serialize_data *igsd, zval *z, bool object, bool incomplete_class, bool in_od_serialize TSRMLS_DC);
+inline int od_igbinary_serialize_array(od_igbinary_serialize_data *igsd, zval *z, zend_class_entry* ce, bool object, bool incomplete_class, bool in_od_serialize TSRMLS_DC);
 
 int od_igbinary_serialize_zval(od_igbinary_serialize_data *igsd, zval *z TSRMLS_DC);
 

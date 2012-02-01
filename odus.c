@@ -408,7 +408,7 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ui
 
 	if(!od_obj) {
 		if(obj->type == IS_ARRAY) {
-			od_igbinary_serialize_array(igsd,obj,0,0,1);
+			od_igbinary_serialize_array(igsd,obj,NULL,0,0,1);
 		} else {
 			// no od_obj means that is_root is false, so igsd has been initialized
 			od_igbinary_serialize_zval(igsd,obj);

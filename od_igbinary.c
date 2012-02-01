@@ -15,6 +15,8 @@
 #include "odwrapper.h"
 #include "od_igbinary.h"
 
+ZEND_EXTERN_MODULE_GLOBALS(odus);
+
 static char* EMPTY_STRING="";
 
 extern void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, uint8_t is_root, uint8_t recursive_check);
@@ -53,6 +55,7 @@ inline static int od_igbinary_unserialize_object_ser(od_igbinary_unserialize_dat
 
 /* }}} */
 
+inline static void adjust_len_info(od_igbinary_serialize_data *igsd, uint32_t n, uint32_t new_n, uint old_len_bytes, uint new_len_bytes, uint32_t old_len_pos);
 
 /* {{{ int od_igbinary_serialize(uint8_t**, uint32_t*, zval*) */
 int od_igbinary_serialize(uint8_t **ret, uint32_t *ret_len, zval *z TSRMLS_DC) {
@@ -455,7 +458,7 @@ inline static int od_igbinary_serialize_chararray(od_igbinary_serialize_data *ig
 /* }}} */
 /* {{{ igbinay_serialize_array */
 /** Serializes array or objects inner properties. */
-inline int od_igbinary_serialize_array(od_igbinary_serialize_data *igsd, zval *z, bool object, bool incomplete_class, bool in_od_serialize TSRMLS_DC) {
+inline int od_igbinary_serialize_array(od_igbinary_serialize_data *igsd, zval *z, zend_class_entry* ce, bool object, bool incomplete_class, bool in_od_serialize TSRMLS_DC) {
 	HashTable *h;
 	HashPosition pos;
 	uint32_t n;
@@ -481,6 +484,11 @@ inline int od_igbinary_serialize_array(od_igbinary_serialize_data *igsd, zval *z
 		return 0;
 	}
 
+	//for removiing default properties
+	uint num_defaults = 0;
+	uint old_len_bytes;
+	uint32_t old_len_pos = igsd->buffer_size;
+
 	if (n <= 0xff) {
 		od_igbinary_serialize8(igsd, od_igbinary_type_array8 TSRMLS_CC);
 		od_igbinary_serialize8(igsd, n TSRMLS_CC);
@@ -491,6 +499,8 @@ inline int od_igbinary_serialize_array(od_igbinary_serialize_data *igsd, zval *z
 		od_igbinary_serialize8(igsd, od_igbinary_type_array32 TSRMLS_CC);
 		od_igbinary_serialize32(igsd, n TSRMLS_CC);
 	}
+
+	old_len_bytes = igsd->buffer_size - old_len_pos;
 
 	//XXX
 	// odus will save the length of array at the buffer now
@@ -522,33 +532,40 @@ inline int od_igbinary_serialize_array(od_igbinary_serialize_data *igsd, zval *z
 			continue;
 		}
 
-		switch (key_type) {
-			case HASH_KEY_IS_LONG:
-				od_igbinary_serialize_long(igsd, key_index TSRMLS_CC);
-				break;
-			case HASH_KEY_IS_STRING:
-
-				od_igbinary_serialize_string(igsd, key, key_len-1 TSRMLS_CC);
-				break;
-			default:
-				od_error(E_ERROR, "od_igbinary_serialize_array: key is not string nor long");
-				/* not reached */
-				return 1;
+		if(key_type != HASH_KEY_IS_LONG && key_type != HASH_KEY_IS_STRING) {
+			od_error(E_ERROR, "od_igbinary_serialize_array: key is not string nor long");
+			/* not reached */
+			return 1;
 		}
 
 		/* we should still add element even if it's not OK,
 		 * since we already wrote the length of the array before */
 		if (zend_hash_get_current_data_ex(h, (void *) &d, &pos) != SUCCESS || d == NULL) {
+
+			(key_type==HASH_KEY_IS_LONG)?od_igbinary_serialize_long(igsd, key_index TSRMLS_CC):od_igbinary_serialize_string(igsd, key, key_len-1 TSRMLS_CC);
+
 			if (od_igbinary_serialize_null(igsd TSRMLS_CC)) {
 				return 1;
 			}
 		} else {
 			if(in_od_serialize) {
+
+				(key_type==HASH_KEY_IS_LONG)?od_igbinary_serialize_long(igsd, key_index TSRMLS_CC):od_igbinary_serialize_string(igsd, key, key_len-1 TSRMLS_CC);
+
 				normal_od_wrapper_serialize(igsd, *d, 0, 1);
 			} else {
-				if (od_igbinary_serialize_zval(igsd, *d TSRMLS_CC)) {
-					return 1;
+
+				if(object && ODUS_G(remove_default) && !incomplete_class && ce && pos && is_default(pos->arKey,pos->nKeyLength,pos->h,*d,&ce->default_properties)) {
+					num_defaults ++;
+				} else {
+
+					(key_type==HASH_KEY_IS_LONG)?od_igbinary_serialize_long(igsd, key_index TSRMLS_CC):od_igbinary_serialize_string(igsd, key, key_len-1 TSRMLS_CC);
+
+					if (od_igbinary_serialize_zval(igsd, *d TSRMLS_CC)) {
+						return 1;
+					}
 				}
+
 			}
 		}
 
@@ -557,6 +574,14 @@ inline int od_igbinary_serialize_array(od_igbinary_serialize_data *igsd, zval *z
 	uint32_t len = igsd->buffer_size - value_start;
 
 	od_igbinary_serialize_value_len(igsd,len,value_start-OD_IGBINARY_VALUE_LEN_SIZE);
+
+	if(num_defaults > 0) {
+
+		uint32_t new_n = (num_defaults<=n)?(n-num_defaults):0;
+		uint new_len_bytes = (new_n <= 0xff)? 2 : ((new_n <= 0xffff)? 3 : 5);
+
+		adjust_len_info(igsd, n, new_n, old_len_bytes, new_len_bytes, old_len_pos);
+	}
 
 	return 0;
 }
@@ -618,6 +643,50 @@ inline static int od_igbinary_serialize_array_ref(od_igbinary_serialize_data *ig
 	return 1;
 }
 /* }}} */
+
+inline static void adjust_len_info(od_igbinary_serialize_data *igsd, uint32_t n, uint32_t new_n, uint old_len_bytes, uint new_len_bytes, uint32_t old_len_pos) {
+
+	assert(old_len_bytes >= new_len_bytes);
+
+	debug("%u properties are defaults and removed out",n - new_n);
+
+	uint32_t diff = old_len_bytes - new_len_bytes;
+
+	uint32_t real_size = igsd->buffer_size - diff;
+
+	if(diff>0) {
+		uint32_t pos;
+
+		for(pos = old_len_pos + new_len_bytes; pos < real_size; pos++) {
+			igsd->buffer[pos] = igsd->buffer[pos + diff];
+		}
+	}
+
+	igsd->buffer_size = old_len_pos;
+
+	if (new_n <= 0xff) {
+		igsd->buffer[igsd->buffer_size++] = (uint8_t)od_igbinary_type_array8;
+		igsd->buffer[igsd->buffer_size++] = (uint8_t)new_n;
+
+	} else if (new_n <= 0xffff) {
+
+		igsd->buffer[igsd->buffer_size++] = (uint8_t)od_igbinary_type_array16;
+
+		igsd->buffer[igsd->buffer_size++] = (uint8_t) (new_n >> 8 & 0xff);
+		igsd->buffer[igsd->buffer_size++] = (uint8_t) (new_n & 0xff);
+
+	} else {
+		igsd->buffer[igsd->buffer_size++] = (uint8_t)od_igbinary_type_array32;
+
+		igsd->buffer[igsd->buffer_size++] = (uint8_t) (new_n >> 24 & 0xff);
+		igsd->buffer[igsd->buffer_size++] = (uint8_t) (new_n >> 16 & 0xff);
+		igsd->buffer[igsd->buffer_size++] = (uint8_t) (new_n >> 8 & 0xff);
+		igsd->buffer[igsd->buffer_size++] = (uint8_t) (new_n & 0xff);
+	}
+
+	igsd->buffer_size = real_size;
+}
+
 /* {{{ od_igbinary_serialize_array_sleep */
 /** Serializes object's properties array with __sleep -function. */
 inline static int od_igbinary_serialize_array_sleep(od_igbinary_serialize_data *igsd, zval *z, HashTable *h, zend_class_entry *ce, bool incomplete_class TSRMLS_DC) {
@@ -630,6 +699,12 @@ inline static int od_igbinary_serialize_array_sleep(od_igbinary_serialize_data *
 	uint key_len;
 	int key_type;
 	ulong key_index;
+
+	//for removiing default properties
+	uint num_defaults = 0;
+	uint old_len_bytes;
+	ulong hash;
+	uint32_t old_len_pos = igsd->buffer_size;
 
 	/* Decrease array size by one, because of magic member (with class name) */
 	if (n > 0 && incomplete_class) {
@@ -647,6 +722,8 @@ inline static int od_igbinary_serialize_array_sleep(od_igbinary_serialize_data *
 		od_igbinary_serialize8(igsd, od_igbinary_type_array32 TSRMLS_CC);
 		od_igbinary_serialize32(igsd, n TSRMLS_CC);
 	}
+
+	old_len_bytes = igsd->buffer_size - old_len_pos;
 
 	//XXX
 	// odus will save the length of array at the buffer now
@@ -688,10 +765,14 @@ inline static int od_igbinary_serialize_array_sleep(od_igbinary_serialize_data *
 			 * serialize null as key-value pair */
 			od_igbinary_serialize_null(igsd TSRMLS_CC);
 		} else {
-
-			if (zend_hash_find(Z_OBJPROP_P(z), Z_STRVAL_PP(d), Z_STRLEN_PP(d) + 1, (void *) &v) == SUCCESS) {
-				od_igbinary_serialize_string(igsd, Z_STRVAL_PP(d), Z_STRLEN_PP(d) TSRMLS_CC);
-				od_igbinary_serialize_zval(igsd, *v TSRMLS_CC);
+			hash = zend_get_hash_value(Z_STRVAL_PP(d), Z_STRLEN_PP(d) + 1);
+			if (zend_hash_quick_find(Z_OBJPROP_P(z), Z_STRVAL_PP(d), Z_STRLEN_PP(d) + 1, hash, (void *) &v) == SUCCESS) {
+				if(ODUS_G(remove_default) && !incomplete_class && ce && is_default(Z_STRVAL_PP(d),Z_STRLEN_PP(d)+1,hash,*v,&ce->default_properties)) {
+					num_defaults ++;
+				} else {
+					od_igbinary_serialize_string(igsd, Z_STRVAL_PP(d), Z_STRLEN_PP(d) TSRMLS_CC);
+					od_igbinary_serialize_zval(igsd, *v TSRMLS_CC);
+				}
 			} else if (ce) {
 				char *prot_name = NULL;
 				char *priv_name = NULL;
@@ -701,10 +782,16 @@ inline static int od_igbinary_serialize_array_sleep(od_igbinary_serialize_data *
 					/* try private */
 					zend_mangle_property_name(&priv_name, &prop_name_length, ce->name, ce->name_length,
 								Z_STRVAL_PP(d), Z_STRLEN_PP(d), ce->type & ZEND_INTERNAL_CLASS);
-					if (zend_hash_find(Z_OBJPROP_P(z), priv_name, prop_name_length+1, (void *) &v) == SUCCESS) {
-						od_igbinary_serialize_string(igsd, priv_name, prop_name_length TSRMLS_CC);
+					hash = zend_get_hash_value(priv_name, prop_name_length+1);
+					if (zend_hash_quick_find(Z_OBJPROP_P(z), priv_name, prop_name_length+1, hash, (void *) &v) == SUCCESS) {
+						if(ODUS_G(remove_default) && !incomplete_class && ce && is_default(priv_name,prop_name_length+1,hash,*v,&ce->default_properties)) {
+							num_defaults ++;
+						} else {
+							od_igbinary_serialize_string(igsd, priv_name, prop_name_length TSRMLS_CC);
+							od_igbinary_serialize_zval(igsd, *v TSRMLS_CC);
+						}
+
 						efree(priv_name);
-						od_igbinary_serialize_zval(igsd, *v TSRMLS_CC);
 						break;
 					}
 					efree(priv_name);
@@ -712,10 +799,16 @@ inline static int od_igbinary_serialize_array_sleep(od_igbinary_serialize_data *
 					/* try protected */
 					zend_mangle_property_name(&prot_name, &prop_name_length, "*", 1,
 								Z_STRVAL_PP(d), Z_STRLEN_PP(d), ce->type & ZEND_INTERNAL_CLASS);
-					if (zend_hash_find(Z_OBJPROP_P(z), prot_name, prop_name_length+1, (void *) &v) == SUCCESS) {
-						od_igbinary_serialize_string(igsd, prot_name, prop_name_length TSRMLS_CC);
+					hash = zend_get_hash_value(prot_name, prop_name_length+1);
+					if (zend_hash_quick_find(Z_OBJPROP_P(z), prot_name, prop_name_length+1, hash, (void *) &v) == SUCCESS) {
+						if(ODUS_G(remove_default) && !incomplete_class && ce && is_default(prot_name,prop_name_length+1,hash,*v,&ce->default_properties)) {
+							num_defaults ++;
+						} else {
+							od_igbinary_serialize_string(igsd, prot_name, prop_name_length TSRMLS_CC);
+							od_igbinary_serialize_zval(igsd, *v TSRMLS_CC);
+						}
+
 						efree(prot_name);
-						od_igbinary_serialize_zval(igsd, *v TSRMLS_CC);
 						break;
 					}
 					efree(prot_name);
@@ -737,6 +830,14 @@ inline static int od_igbinary_serialize_array_sleep(od_igbinary_serialize_data *
 	uint32_t len = igsd->buffer_size - value_start;
 
 	od_igbinary_serialize_value_len(igsd,len,value_start-OD_IGBINARY_VALUE_LEN_SIZE);
+
+	if(num_defaults > 0) {
+
+		uint32_t new_n = (num_defaults<=n)?(n-num_defaults):0;
+		uint new_len_bytes = (new_n <= 0xff)? 2 : ((new_n <= 0xffff)? 3 : 5);
+
+		adjust_len_info(igsd, n, new_n, old_len_bytes, new_len_bytes, old_len_pos);
+	}
 
 	return 0;
 }
@@ -906,7 +1007,7 @@ inline static int od_igbinary_serialize_object(od_igbinary_serialize_data *igsd,
 
 		return r;
 	} else {
-		return od_igbinary_serialize_array(igsd, z, true, incomplete_class, false TSRMLS_CC);
+		return od_igbinary_serialize_array(igsd, z, ce, true, incomplete_class, false TSRMLS_CC);
 	}
 }
 /* }}} */
@@ -925,7 +1026,7 @@ int od_igbinary_serialize_zval(od_igbinary_serialize_data *igsd, zval *z TSRMLS_
 		case IS_OBJECT:
 			return od_igbinary_serialize_object(igsd, z TSRMLS_CC);
 		case IS_ARRAY:
-			return od_igbinary_serialize_array(igsd, z, false, false, false TSRMLS_CC);
+			return od_igbinary_serialize_array(igsd, z, NULL, false, false, false TSRMLS_CC);
 		case IS_STRING:
 			return od_igbinary_serialize_string(igsd, Z_STRVAL_P(z), Z_STRLEN_P(z) TSRMLS_CC);
 		case IS_LONG:

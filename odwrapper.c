@@ -112,8 +112,6 @@ static int od_wrapper_compare_objects(zval *o1, zval *o2 TSRMLS_DC);
 static zend_function *od_wrapper_get_method(zval **object_ptr, char *method_name, int method_len TSRMLS_DC);
 // Static Utilities Definition
 
-static inline uint8_t is_default(char* key, uint len, ulong hash, zval* val, HashTable* ht);
-
 static inline void od_wrapper_lazy_init(zval* obj, od_wrapper_object* od_obj);
 
 static zval* od_wrapper_unserialize(od_igbinary_unserialize_data *igsd);
@@ -971,7 +969,7 @@ zend_function *od_wrapper_get_method(zval **object_ptr, char *method_name, int m
 
 // Static Utilities Definition
 
-uint8_t is_default(char* key, uint len, ulong hash, zval* val, HashTable* ht)
+uint8_t is_default(char* key, uint key_len, ulong hash, zval* val, HashTable* ht)
 {
 	//don't check inputs
 
@@ -985,7 +983,7 @@ uint8_t is_default(char* key, uint len, ulong hash, zval* val, HashTable* ht)
 
 	zval** retval_p = NULL;
 
-	if(zend_hash_quick_find(ht, key, len + 1, hash, (void**)&retval_p) == FAILURE) {
+	if(zend_hash_quick_find(ht, key, key_len, hash, (void**)&retval_p) == FAILURE) {
 		return 0;
 	} else {
 		if(retval_p && *retval_p) {
