@@ -1,7 +1,5 @@
 #!/bin/sh
 
-set -e
-
 cur=`dirname $0`;
 cd $cur;
 cur=$PWD
