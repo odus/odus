@@ -21,7 +21,7 @@ ZEND_DECLARE_MODULE_GLOBALS(odus)
 
 static void php_odus_init_globals(zend_odus_globals* odus_globals TSRMLS_DC)
 {
-	odus_globals->remove_default = 1;
+	odus_globals->remove_default = 0;
 }
 
 /* {{{ odus_functions[]
@@ -88,7 +88,7 @@ void od_overwrite_function(char* old, char* new) {
 }
 
 PHP_INI_BEGIN()
-    STD_PHP_INI_BOOLEAN("odus.remove_default",      "1",    PHP_INI_SYSTEM, OnUpdateBool,              remove_default,         zend_odus_globals, odus_globals)
+    STD_PHP_INI_BOOLEAN("odus.remove_default",      "0",    PHP_INI_SYSTEM, OnUpdateBool,              remove_default,         zend_odus_globals, odus_globals)
 PHP_INI_END()
 
 /* {{{ PHP_MINIT_FUNCTION
