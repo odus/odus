@@ -58,7 +58,7 @@ odus means On Demand Unserialization & Serialization. It is used to do lazy unse
 %{__cat} > %{buildroot}%{_sysconfdir}/php.d/odus.ini << 'EOF'
 ; Enable odus extension module
 extension=odus.so
-odus.remove_default=1
+odus.remove_default=0
 EOF
 
 %clean
