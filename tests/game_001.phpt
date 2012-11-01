@@ -1,5 +1,5 @@
 --TEST--
-User blob -- read and wirte simple properties
+User blob -- read and write simple properties
 --SKIPIF--
 <?php if (!extension_loaded("odus")) print "skip"; ?>
 --FILE--

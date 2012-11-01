@@ -1,0 +1,98 @@
+"Odus2" is a temporary fork of:
+
+https://zyntranet.apps.corp.zynga.com/display/ZB/ODUS+Developer+Document
+https://zyntranet.apps.corp.zynga.com/download/attachments/94333613/odus-release-2012-02-20.zip
+
+Before deploying to City production we needed to patch ODUS so that
+it doesn't throw PHP Fatal when od_serialize fails because we have
+existing data that contains references (working on fixing root
+cause of those as well).  Odus2 allows for two additional strategies 
+for recovering from a od_serialize failure.
+
+[1] Return NULL if a od_serialize failure happens 
+    ( set odus.ini:odus.reduce_fatals=1 )  This is roughly similar
+    behavior to json_encode returning FALSE on failure.
+[2] Throw an OdusException 
+    ( in addition to [1] also set odus.ini:odus.throw_exceptions=1 )
+
+Note: default behavior is unchanged from Odus1 (simply shit the bed
+in this case, i.e. PHP Fatal)
+
+We are working with zChina to get these options code reviewed and
+pulled back into the official build (see correspondence below), 
+in the meantime just checking these changes in here and continuing 
+to test.  Longer term we this really needs to get back into a 
+non-game specific repo.
+
+
+
+From: Ling Zhu
+To: Huiqiang Liu; Zicheng Huang; Wei Wang
+Cc: Sahn Lam; Steven Chow; Jia Liu
+
+Hi,
+
+Xiaolong has left Zynga. Huiqiang is maintaining this technology.
+
+I would rather expect PHP fatal error if there is violation in ODUS. As 
+it's PHP extension, you shouldn't expect PHP to recover from this kind 
+of error.
+
+I also recommend work around in PHP magic function for this reference 
+problem. I mean in wakeup or sleep, you set the value of refer object.
+
+Thanks,
+
+Ling
+
+
+-----Original Message-----
+From: Jia Liu 
+Sent: Friday, October 19, 2012 3:38 PM
+To: Steven Chow; Xiaolong Ma; Ling Zhu
+Cc: Sahn Lam
+Subject: Re: ODUS serialize exception change
+
++Ling who is owning this now.
+
+On 10/19/12 9:59 AM, "Steven Chow" <schow@zynga.com> wrote:
+
+>Xiaolong,
+>
+>I have a patch to ODUS that I'd like you to review (see attachment)
+>
+>I've been working on testing ODUS on CityVille US and encountered a 
+>situation where I see a PHP Fatal with this message:
+>
+>"in odus different values could not referring to same object or array"
+>
+>I can see this behavior (or lack of support for references)
+>documented
+>here:
+>
+>https://zyntranet.apps.corp.zynga.com/display/ZB/ODUS+Developer+Documen
+>t "ODUS ttttttttt support serialize result references like 
+>O:1:"A":2:{s:2:"v1";s:3:"val";s:2:"v2";R:2;}"
+>
+>The problem I'm having is that we have existing CityVille user blobs 
+>that contain such references.  In order to safe guard against future 
+>situations where references are introduced, I want to convert the "PHP 
+>Fatal" to an Exception so we can catch it in our code and handle it.
+>I've prototyped that change, have built a dev rpm and have been testing 
+>in dev.
+>
+>I am not an expert in writing PHP extensions so I wanted to ask you if 
+>you could:
+>
+>[1] Review the attached patch.  (confirm that there are no negative 
+>side effects and that this is an acceptable method for throwing an exception).
+>[2] If you agree with the change.  Can you integrate the patch and 
+>rebuild/release a new version of the RPM?
+>
+>Thank you.
+>               
+>--
+>
+>Steven Chow
+>schow@zynga.com
+>(415)218-0820

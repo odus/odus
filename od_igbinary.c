@@ -469,6 +469,8 @@ inline int od_igbinary_serialize_array(od_igbinary_serialize_data *igsd, zval *z
 	int key_type;
 	ulong key_index;
 
+	int r = 0;
+
 	/* hash */
 	h = object ? Z_OBJPROP_P(z) : HASH_OF(z);
 
@@ -481,7 +483,7 @@ inline int od_igbinary_serialize_array(od_igbinary_serialize_data *igsd, zval *z
 	}
 
 	if (!object && od_igbinary_serialize_array_ref(igsd, z, object TSRMLS_CC) == 0) {
-		return 0;
+			return 1; // if we see that we serialized a ref then return error in ODUS 
 	}
 
 	//for removiing default properties
@@ -542,7 +544,7 @@ inline int od_igbinary_serialize_array(od_igbinary_serialize_data *igsd, zval *z
 		 * since we already wrote the length of the array before */
 		if (zend_hash_get_current_data_ex(h, (void *) &d, &pos) != SUCCESS || d == NULL) {
 
-			(key_type==HASH_KEY_IS_LONG)?od_igbinary_serialize_long(igsd, key_index TSRMLS_CC):od_igbinary_serialize_string(igsd, key, key_len-1 TSRMLS_CC);
+			r += (key_type==HASH_KEY_IS_LONG)?od_igbinary_serialize_long(igsd, key_index TSRMLS_CC):od_igbinary_serialize_string(igsd, key, key_len-1 TSRMLS_CC);
 
 			if (od_igbinary_serialize_null(igsd TSRMLS_CC)) {
 				return 1;
@@ -550,7 +552,7 @@ inline int od_igbinary_serialize_array(od_igbinary_serialize_data *igsd, zval *z
 		} else {
 			if(in_od_serialize) {
 
-				(key_type==HASH_KEY_IS_LONG)?od_igbinary_serialize_long(igsd, key_index TSRMLS_CC):od_igbinary_serialize_string(igsd, key, key_len-1 TSRMLS_CC);
+				r += (key_type==HASH_KEY_IS_LONG)?od_igbinary_serialize_long(igsd, key_index TSRMLS_CC):od_igbinary_serialize_string(igsd, key, key_len-1 TSRMLS_CC);
 
 				normal_od_wrapper_serialize(igsd, *d, 0, 1);
 			} else {
@@ -559,7 +561,7 @@ inline int od_igbinary_serialize_array(od_igbinary_serialize_data *igsd, zval *z
 					num_defaults ++;
 				} else {
 
-					(key_type==HASH_KEY_IS_LONG)?od_igbinary_serialize_long(igsd, key_index TSRMLS_CC):od_igbinary_serialize_string(igsd, key, key_len-1 TSRMLS_CC);
+					r += (key_type==HASH_KEY_IS_LONG)?od_igbinary_serialize_long(igsd, key_index TSRMLS_CC):od_igbinary_serialize_string(igsd, key, key_len-1 TSRMLS_CC);
 
 					if (od_igbinary_serialize_zval(igsd, *d TSRMLS_CC)) {
 						return 1;
@@ -583,7 +585,7 @@ inline int od_igbinary_serialize_array(od_igbinary_serialize_data *igsd, zval *z
 		adjust_len_info(igsd, n, new_n, old_len_bytes, new_len_bytes, old_len_pos);
 	}
 
-	return 0;
+	return r;
 }
 /* }}} */
 /* {{{ od_igbinary_serialize_array_ref */
@@ -620,7 +622,17 @@ inline static int od_igbinary_serialize_array_ref(od_igbinary_serialize_data *ig
 			return 1;
 		}
 
-		od_error(E_ERROR, "in odus different values could not referring to same object or array");
+		// Depending on what behavior you want out of the extension you can enable this 
+		// in /etc/php.d/odus.ini ( set odus.throw_exceptions=1 )
+		if(ODUS_G(od_throw_exceptions)) {
+				zend_throw_exception(odus_exception_ce, "Odus detected reference in data which is not supported by odus serialization", -1 TSRMLS_CC);
+		}
+
+		// Turn reduce php fatals 
+		// in /etc/php.d/odus.ini ( set odus.reduce_fatals=1 )
+		if(!ODUS_G(od_reduce_fatals)) { // default behavor of ODUS is to have reduce fatals off
+				od_error(E_ERROR, "in odus different values could not referring to same object or array");
+		}
 
 		od_igbinary_type type;
 		if (*i <= 0xff) {
@@ -706,6 +718,8 @@ inline static int od_igbinary_serialize_array_sleep(od_igbinary_serialize_data *
 	ulong hash;
 	uint32_t old_len_pos = igsd->buffer_size;
 
+	int r = 0;
+
 	/* Decrease array size by one, because of magic member (with class name) */
 	if (n > 0 && incomplete_class) {
 		--n;
@@ -763,15 +777,15 @@ inline static int od_igbinary_serialize_array_sleep(od_igbinary_serialize_data *
 			/* we should still add element even if it's not OK,
 			 * since we already wrote the length of the array before
 			 * serialize null as key-value pair */
-			od_igbinary_serialize_null(igsd TSRMLS_CC);
+			r += od_igbinary_serialize_null(igsd TSRMLS_CC);
 		} else {
 			hash = zend_get_hash_value(Z_STRVAL_PP(d), Z_STRLEN_PP(d) + 1);
 			if (zend_hash_quick_find(Z_OBJPROP_P(z), Z_STRVAL_PP(d), Z_STRLEN_PP(d) + 1, hash, (void *) &v) == SUCCESS) {
 				if(ODUS_G(remove_default) && !incomplete_class && ce && is_default(Z_STRVAL_PP(d),Z_STRLEN_PP(d)+1,hash,*v,&ce->default_properties)) {
 					num_defaults ++;
 				} else {
-					od_igbinary_serialize_string(igsd, Z_STRVAL_PP(d), Z_STRLEN_PP(d) TSRMLS_CC);
-					od_igbinary_serialize_zval(igsd, *v TSRMLS_CC);
+					r += od_igbinary_serialize_string(igsd, Z_STRVAL_PP(d), Z_STRLEN_PP(d) TSRMLS_CC);
+					r += od_igbinary_serialize_zval(igsd, *v TSRMLS_CC);
 				}
 			} else if (ce) {
 				char *prot_name = NULL;
@@ -787,8 +801,8 @@ inline static int od_igbinary_serialize_array_sleep(od_igbinary_serialize_data *
 						if(ODUS_G(remove_default) && !incomplete_class && ce && is_default(priv_name,prop_name_length+1,hash,*v,&ce->default_properties)) {
 							num_defaults ++;
 						} else {
-							od_igbinary_serialize_string(igsd, priv_name, prop_name_length TSRMLS_CC);
-							od_igbinary_serialize_zval(igsd, *v TSRMLS_CC);
+							r += od_igbinary_serialize_string(igsd, priv_name, prop_name_length TSRMLS_CC);
+							r += od_igbinary_serialize_zval(igsd, *v TSRMLS_CC);
 						}
 
 						efree(priv_name);
@@ -804,8 +818,8 @@ inline static int od_igbinary_serialize_array_sleep(od_igbinary_serialize_data *
 						if(ODUS_G(remove_default) && !incomplete_class && ce && is_default(prot_name,prop_name_length+1,hash,*v,&ce->default_properties)) {
 							num_defaults ++;
 						} else {
-							od_igbinary_serialize_string(igsd, prot_name, prop_name_length TSRMLS_CC);
-							od_igbinary_serialize_zval(igsd, *v TSRMLS_CC);
+							r += od_igbinary_serialize_string(igsd, prot_name, prop_name_length TSRMLS_CC);
+							r += od_igbinary_serialize_zval(igsd, *v TSRMLS_CC);
 						}
 
 						efree(prot_name);
@@ -814,15 +828,15 @@ inline static int od_igbinary_serialize_array_sleep(od_igbinary_serialize_data *
 					efree(prot_name);
 
 					/* no win */
-					od_igbinary_serialize_string(igsd, Z_STRVAL_PP(d), Z_STRLEN_PP(d) TSRMLS_CC);
-					od_igbinary_serialize_null(igsd TSRMLS_CC);
+					r += od_igbinary_serialize_string(igsd, Z_STRVAL_PP(d), Z_STRLEN_PP(d) TSRMLS_CC);
+					r += od_igbinary_serialize_null(igsd TSRMLS_CC);
 					php_error_docref(NULL TSRMLS_CC, E_NOTICE, "\"%s\" returned as member variable from __sleep() but does not exist", Z_STRVAL_PP(d));
 				} while (0);
 
 			} else {
 				// if all else fails, just serialize the value in anyway.
-				od_igbinary_serialize_string(igsd, Z_STRVAL_PP(d), Z_STRLEN_PP(d) TSRMLS_CC);
-				od_igbinary_serialize_zval(igsd, *v TSRMLS_CC);
+				r += od_igbinary_serialize_string(igsd, Z_STRVAL_PP(d), Z_STRLEN_PP(d) TSRMLS_CC);
+				r += od_igbinary_serialize_zval(igsd, *v TSRMLS_CC);
 			}
 		}
 	}
@@ -839,7 +853,7 @@ inline static int od_igbinary_serialize_array_sleep(od_igbinary_serialize_data *
 		adjust_len_info(igsd, n, new_n, old_len_bytes, new_len_bytes, old_len_pos);
 	}
 
-	return 0;
+	return r;
 }
 /* }}} */
 /* {{{ od_igbinary_serialize_object_name */
@@ -912,7 +926,7 @@ inline static int od_igbinary_serialize_object(od_igbinary_serialize_data *igsd,
 	PHP_CLASS_ATTRIBUTES;
 
 	if (od_igbinary_serialize_array_ref(igsd, z, true TSRMLS_CC) == 0) {
-		return r;
+		return 1; // if we see that we serialized a ref then return error in ODUS 
 	}
 
 	ce = Z_OBJCE_P(z);

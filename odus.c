@@ -22,6 +22,8 @@ ZEND_DECLARE_MODULE_GLOBALS(odus)
 static void php_odus_init_globals(zend_odus_globals* odus_globals TSRMLS_DC)
 {
 	odus_globals->remove_default = 0;
+	odus_globals->od_throw_exceptions = 0;
+	odus_globals->od_reduce_fatals = 0;
 }
 
 /* {{{ odus_functions[]
@@ -89,13 +91,24 @@ void od_overwrite_function(char* old, char* new) {
 
 PHP_INI_BEGIN()
     STD_PHP_INI_BOOLEAN("odus.remove_default",      "0",    PHP_INI_SYSTEM, OnUpdateBool,              remove_default,         zend_odus_globals, odus_globals)
+    STD_PHP_INI_BOOLEAN("odus.throw_exceptions",      "0",    PHP_INI_SYSTEM, OnUpdateBool,              od_throw_exceptions,         zend_odus_globals, odus_globals)
+    STD_PHP_INI_BOOLEAN("odus.reduce_fatals",      "0",    PHP_INI_SYSTEM, OnUpdateBool,              od_reduce_fatals,         zend_odus_globals, odus_globals)
 PHP_INI_END()
+
+zend_class_entry *odus_exception_ce;
 
 /* {{{ PHP_MINIT_FUNCTION
  */
 PHP_MINIT_FUNCTION(odus)
 {
+    zend_class_entry ce;
+
     ZEND_INIT_MODULE_GLOBALS(odus, php_odus_init_globals, NULL);
+
+    /* Odus exception class */
+    INIT_CLASS_ENTRY(ce, "OdusException", NULL);
+    odus_exception_ce = zend_register_internal_class_ex(&ce, zend_exception_get_default(TSRMLS_C), NULL TSRMLS_CC);
+    odus_exception_ce->ce_flags |= ZEND_ACC_FINAL;
 
     REGISTER_INI_ENTRIES();
 

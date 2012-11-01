@@ -4,6 +4,8 @@
 
 #include "od_def.h"
 
+extern zend_class_entry *odus_exception_ce;
+
 extern zend_module_entry odus_module_entry;
 #define phpext_odus_ptr &odus_module_entry
 
@@ -41,10 +43,12 @@ PHP_FUNCTION(od_overwrite_function);
 #define OD_IGBINARY_VERSION_BYTES  4
 #define OD_RESERVED_BUFFER_LEN 1024
 
-#define OD_VERSION "1.0.8"
+#define OD_VERSION "1.0.9"
 
 ZEND_BEGIN_MODULE_GLOBALS(odus)
 	zend_bool remove_default;
+	zend_bool od_throw_exceptions;
+	zend_bool od_reduce_fatals;
 ZEND_END_MODULE_GLOBALS(odus)
 
 /* In every utility function you add that needs to use variables 

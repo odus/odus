@@ -19,7 +19,7 @@ if (string.find(current_name, "-dbg", 1, true)) then
 end
 }
 
-Summary: php extention package for odus 
+Summary: php extention package for odus
 Name: %{peclname}
 Version: <VERSION> 
 Release: 1.zb_5.2.10
