@@ -12,18 +12,11 @@ function show($msg) {
 	echo "$msg\n";
 }
 
-class Sharedata {
-}
-$shareddata = new Sharedata();
+$o = new stdClass;
+$o->n = "only_one_string";
+$o->r = &$o->n;
 
-class AClass {
-}
-
-$arr = new AClass();
-$arr->bloo = $shareddata;
-$arr->blah = $shareddata;
-
-$result = od_serialize($arr);
+$result = od_serialize($o);
 
 if ($result == NULL) {
    show("NULL");

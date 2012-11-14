@@ -1,3 +1,10 @@
+* Thu Nov 14 2012 Steven Chow<schow@zynga.com> (Author), Huiqiang Liu<h.liu@zynga.com> (Commiter)
+  version 1.0.10
+- Consider these options when a field is reference of another one with primitive value
+		odus.throw_exceptions=1: throw OdusException
+		odus.reduce_fatals=1: return NULL
+		otherwise, convert into a copy of that value
+- Add two test cases for these options
 * Thu Nov 01 2012 Steven Chow<schow@zynga.com> (Author), Xiaogang Duan<xduan@zynga.com> (Commiter)
   version 1.0.9
 - Add options of odus fatal error behavior

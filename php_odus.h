@@ -43,7 +43,7 @@ PHP_FUNCTION(od_overwrite_function);
 #define OD_IGBINARY_VERSION_BYTES  4
 #define OD_RESERVED_BUFFER_LEN 1024
 
-#define OD_VERSION "1.0.9"
+#define OD_VERSION "1.0.10"
 
 ZEND_BEGIN_MODULE_GLOBALS(odus)
 	zend_bool remove_default;

@@ -625,13 +625,13 @@ inline static int od_igbinary_serialize_array_ref(od_igbinary_serialize_data *ig
 		// Depending on what behavior you want out of the extension you can enable this 
 		// in /etc/php.d/odus.ini ( set odus.throw_exceptions=1 )
 		if(ODUS_G(od_throw_exceptions)) {
-				zend_throw_exception(odus_exception_ce, "Odus detected reference in data which is not supported by odus serialization", -1 TSRMLS_CC);
+				zend_throw_exception(odus_exception_ce, "Odus detected reference to OBJECT/ARRAY in data which is not supported by odus serialization", -1 TSRMLS_CC);
 		}
 
 		// Turn reduce php fatals 
 		// in /etc/php.d/odus.ini ( set odus.reduce_fatals=1 )
 		if(!ODUS_G(od_reduce_fatals)) { // default behavor of ODUS is to have reduce fatals off
-				od_error(E_ERROR, "in odus different values could not referring to same object or array");
+				od_error(E_ERROR, "in odus different values could not referring to same OBJECT or ARRAY");
 		}
 
 		od_igbinary_type type;
@@ -1028,12 +1028,56 @@ inline static int od_igbinary_serialize_object(od_igbinary_serialize_data *igsd,
 /* {{{ od_igbinary_serialize_zval */
 /** Serialize zval. */
 int od_igbinary_serialize_zval(od_igbinary_serialize_data *igsd, zval *z TSRMLS_DC) {
+	if (Z_ISREF_P(z)) {
+			// Depending on what behavior you want out of the extension you can enable this 
+			// in /etc/php.d/odus.ini ( set odus.throw_exceptions=1 )
+			if(ODUS_G(od_throw_exceptions)) {
+					zend_throw_exception(odus_exception_ce, "Odus detected reference to VALUE which is not supported by odus serialization", -1 TSRMLS_CC);
+					return 1; // return error
+			}
+			
+			// This actually should be taken and put under another setting
+			// but since od_reduce_fatals is used to return NULL on error
+			// in the ..array_ref's paths continuing with that here.
+			//
+			// in /etc/php.d/odus.ini ( set odus.reduce_fatals=1 )
+			if(ODUS_G(od_reduce_fatals)) { // default behavor of ODUS is to have reduce fatals off
+					return 1; // return error
+			}
 
-	//XXX
-	//will not record refer info
-	//if (Z_ISREF_P(z)) {
-	//	od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_ref TSRMLS_CC);
-	//}
+			// DEFAULT behavior of ODUS 1.0.9 and before is to silently convert 
+			// the Reference  into a copy of the value (this is what is deployed 
+			// to citytc and the ville) so changing this behavior may affect those 
+			// games, because of that I'm just leaving the default behavior as is.  
+			// It is preferrable not to do though.
+			//
+			// Demo of the 1.0.9 behavior
+			// $o = new stdClass;
+			// $o->n = "only_one_string";
+			// $o->r = &$o->n;
+			//
+			// $x = serialize($o);
+			// echo "$x\n";
+			// $y = od_serialize($o);
+			// $z = new ODWrapper($y);
+			// $j = serialize($z);
+			// echo "$j\n";
+			//
+			// [schow@city-dev-12 tmp]$ php refref.php
+			// O:8:"stdClass":2:{s:1:"n";s:15:"only_one_string";s:1:"r";R:2;}
+			// O:8:"stdClass":2:{s:1:"n";s:15:"only_one_string";s:1:"r";s:15:"only_one_string";}
+			// 
+			// We can see that $z and $j has 2 independent copies of the "only_one_string".
+			//
+			// However, this is NOT desirable:
+			//
+			// BEST [Best option]: change ODUS to support references to VALUES (so $x == $j)
+			// OK [Ok option]: don't support references but enable reduce_fatals=1 and throw_exceptions=1
+			// UNDESIRABLE [Default option]: silently alter data during serialization (citytc,theville)
+			//
+			// od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_ref TSRMLS_CC);
+	}
+
 	switch (Z_TYPE_P(z)) {
 		case IS_RESOURCE:
 			return od_igbinary_serialize_null(igsd TSRMLS_CC);
