@@ -124,7 +124,7 @@ static void get_all_members(od_wrapper_object* od_obj);
 
 static int array_contains_object(zval* val);
 // Could not be static
-uint8_t is_od_wrapper_obj_modified(od_wrapper_object* od_obj, uint8_t has_sleep, int* member_num_diff);
+uint8_t is_od_wrapper_obj_modified(od_wrapper_object* od_obj, uint8_t has_sleep, int* member_num_diff, struct hash_si * visited_od_wrappers);
 
 static void od_wrapper_modify_property(zval** variable_ptr, zval* value, zend_property_info *property_info, od_wrapper_object* od_obj);
 
@@ -271,23 +271,14 @@ void od_zval_ptr_dtor(zval **zval_ptr)
 		return;
 	}
 
-#if DEBUG_ZEND>=2
-	printf("Reducing refcount for %x (%x):  %d->%d\n", *zval_ptr, zval_ptr, (*zval_ptr)->refcount, (*zval_ptr)->refcount-1);
-#endif
-	(*zval_ptr)->refcount--;
-	if ((*zval_ptr)->refcount==0) {
-		zval_dtor(*zval_ptr);
-		safe_free_zval_ptr_rel(*zval_ptr ZEND_FILE_LINE_RELAY_CC ZEND_FILE_LINE_CC);
-	} else if ((*zval_ptr)->refcount == 1) {
-		if ((*zval_ptr)->type == IS_OBJECT) {
-			TSRMLS_FETCH();
-
-			if (EG(ze1_compatibility_mode)) {
-				return;
-			}
-		}
-		(*zval_ptr)->is_ref = 0;
-	}
+	// The code that was here was copied verbatim from _zval_ptr_dtor() in
+	// Zend/zend_execute_API.c which didn't compile in debug mode, since
+	// it referred to ZEND_FILE_LINE_RELAY_CC and ZEND_FILE_LINE_CC macros
+	// that were only available to PHP itself.
+	//
+	// Call zval_ptr_dtor_wrapper instead. It will invoke _zval_ptr_dtor()
+	// internally.
+	zval_ptr_dtor_wrapper(zval_ptr);
 }
 
 int od_wrapper_call_setter(zval *object, zval *member, zval *value TSRMLS_DC)
@@ -505,7 +496,7 @@ zval *od_wrapper_read_property(zval *object, zval *member, int type TSRMLS_DC)
 {
 	zend_object *zobj;
 	zval *tmp_member = NULL;
-	zval **retval;
+	zval **retval = NULL;
 	zval *rv = NULL;
 	zend_property_info *property_info;
 	int silent;
@@ -1552,7 +1543,7 @@ int array_contains_object(zval* val)
 	return 0;
 }
 
-uint8_t is_od_wrapper_obj_modified(od_wrapper_object* od_obj,uint8_t has_sleep, int* member_num_diff)
+uint8_t is_od_wrapper_obj_modified(od_wrapper_object* od_obj,uint8_t has_sleep, int* member_num_diff, struct hash_si * visited_od_wrappers)
 {
 	if(member_num_diff) *member_num_diff=0;
 
@@ -1574,6 +1565,13 @@ uint8_t is_od_wrapper_obj_modified(od_wrapper_object* od_obj,uint8_t has_sleep, 
 	zval* val = NULL;
 	uint8_t modified = 0;
 	uint32_t i;
+	uint32_t found = 0;
+	uint32_t *found_p = &found;
+
+	// Track ODWrappers we have already visited so circular references
+	// don't drag us into an infinite loop and cause segfault.
+	found = hash_si_size(visited_od_wrappers); /* just some arbitrary value */
+	hash_si_insert(visited_od_wrappers, (char *) od_obj, sizeof(od_wrapper_object *), found);
 
 	if (ht->used > 0) {
 		for (i = 0; i < ht->size; i++) {
@@ -1620,13 +1618,19 @@ uint8_t is_od_wrapper_obj_modified(od_wrapper_object* od_obj,uint8_t has_sleep, 
 
 							od_wrapper_object* sub_od_obj = (od_wrapper_object*) zend_object_store_get_object(val);
 
-							if (!is_od_wrapper_obj_modified(sub_od_obj, 0, NULL)) {
+							if (hash_si_find(visited_od_wrappers, (char *) sub_od_obj, sizeof(od_wrapper_object *), found_p) == 1 /* not found */) {
+																
+								if (!is_od_wrapper_obj_modified(sub_od_obj, 0, NULL, visited_od_wrappers)) {
 
-								OD_RESET_MODIFIED(*bkt);
+									OD_RESET_MODIFIED(*bkt);
 
-							} else {
-								modified = 1;
-								OD_SET_MODIFIED(*bkt);
+								} else {
+									modified = 1;
+									OD_SET_MODIFIED(*bkt);
+								}
+							}
+							else {
+								debug("is_od_wrapper_obj_modified() already visited %s", bkt->key);
 							}
 						} else {
 							if (OD_IS_MODIFIED(*bkt) || val->type == IS_OBJECT) {
