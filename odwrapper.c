@@ -673,8 +673,13 @@ zval **od_wrapper_get_property_ptr_ptr(zval *object, zval *member TSRMLS_DC)
 				}
 			}
 		} else {
-			/* we do have getter - fail and let it try again with usual get/set */
-			retval = NULL;
+			OD_SEARCH_PROPERTY(retval);
+			if(retval != NULL) {
+				OD_SET_MODIFIED(*bkt);
+			}
+			else {
+				/* we do have getter - fail and let it try again with usual get/set */
+			}
 		}
 
 		//Will treat this
