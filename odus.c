@@ -37,6 +37,7 @@ zend_function_entry odus_functions[] = {
 	PHP_FE(od_format_version,	NULL)
 	PHP_FE(od_format_match,	NULL)
 	PHP_FE(od_overwrite_function,	NULL)
+	PHP_FE(od_refresh_odwrapper,	NULL)
 	{NULL, NULL, NULL}	/* Must be the last line in odus_functions[] */
 };
 /* }}} */
@@ -683,6 +684,52 @@ PHP_FUNCTION(od_format_match)
 		}
 
 		version>>=8;
+	}
+
+	RETURN_BOOL(1);
+}
+
+PHP_FUNCTION(od_refresh_odwrapper)
+{
+	zval* refresh = NULL;
+	zval* replace = NULL;
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zz",&refresh,&replace)) {
+		RETURN_BOOL(0);
+	}
+
+	if(refresh == NULL || Z_TYPE_P(refresh) != IS_OBJECT || !IS_OD_WRAPPER(refresh) || replace == NULL || Z_TYPE_P(replace) != IS_OBJECT || !IS_OD_WRAPPER(replace)) {
+		RETURN_BOOL(0);
+	}
+
+	zend_object *refresh_zobj;
+	refresh_zobj = (zend_object *)zend_object_store_get_object(refresh TSRMLS_CC);
+	od_wrapper_object* refresh_od_obj = (od_wrapper_object*)refresh_zobj;
+	od_igbinary_unserialize_data* refresh_igsd = &(refresh_od_obj->igsd);
+
+	zend_object *replace_zobj;
+	replace_zobj = (zend_object *)zend_object_store_get_object(replace TSRMLS_CC);
+	od_wrapper_object* replace_od_obj = (od_wrapper_object*)replace_zobj;
+	od_igbinary_unserialize_data* replace_igsd = &(replace_od_obj->igsd);
+
+	refresh_igsd->buffer = replace_igsd->buffer;
+	refresh_igsd->buffer_size = replace_igsd->buffer_size;
+	refresh_igsd->buffer_offset = replace_igsd->buffer_offset;
+
+	if (refresh_od_obj->od_properties) {
+		od_hash_deinit(&refresh_od_obj->od_properties);
+		refresh_od_obj->od_properties = NULL;
+	}
+
+	if (refresh_od_obj->zo.properties) {
+		zend_hash_destroy(refresh_od_obj->zo.properties);
+		FREE_HASHTABLE(refresh_od_obj->zo.properties);
+		refresh_od_obj->zo.properties = NULL;
+	}
+
+	if (refresh_od_obj->zo.guards) {
+		zend_hash_destroy(refresh_od_obj->zo.guards);
+		FREE_HASHTABLE(refresh_od_obj->zo.guards);
+		refresh_od_obj->zo.guards = NULL;
 	}
 
 	RETURN_BOOL(1);
