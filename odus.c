@@ -38,6 +38,7 @@ zend_function_entry odus_functions[] = {
 	PHP_FE(od_format_match,	NULL)
 	PHP_FE(od_overwrite_function,	NULL)
 	PHP_FE(od_refresh_odwrapper,	NULL)
+	PHP_FE(od_getobjectkeys_odwrapper, NULL)
 	{NULL, NULL, NULL}	/* Must be the last line in odus_functions[] */
 };
 /* }}} */
@@ -75,6 +76,8 @@ extern zend_object_handlers od_wrapper_object_handlers;
 extern uint8_t is_od_wrapper_obj_modified(od_wrapper_object* od_obj,uint8_t has_sleep, int* member_num_diff, struct hash_si * visited_od_wrappers);
 
 extern void search_member(od_wrapper_object* od_obj, const char* member_name, uint32_t member_len, uint32_t hash, ODBucket** ret_bkt, member_pos* ret_pos);
+
+extern int od_wrapper_skip_value(od_igbinary_unserialize_data *igsd);
 
 void od_overwrite_function(char* old, char* new) {
 	if(EG(function_table)==NULL || old==NULL || new==NULL) return;
@@ -733,4 +736,83 @@ PHP_FUNCTION(od_refresh_odwrapper)
 	}
 
 	RETURN_BOOL(1);
+}
+
+PHP_FUNCTION(od_getobjectkeys_odwrapper)
+{
+	zval* obj = NULL;
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z",&obj)) {
+		RETURN_BOOL(0);
+	}
+
+	if(obj == NULL || Z_TYPE_P(obj) != IS_OBJECT || !IS_OD_WRAPPER(obj)) {
+		RETURN_BOOL(0);
+	}
+
+	zend_object *zobj;
+	zobj = (zend_object *)zend_object_store_get_object(obj TSRMLS_CC);
+	od_wrapper_object* od_obj = (od_wrapper_object*)zobj;
+	od_igbinary_unserialize_data* igsd = &(od_obj->igsd);
+
+	HashTable *htable;
+	ALLOC_HASHTABLE(htable);
+	zend_hash_init(htable, 0, NULL, NULL, 0);
+
+	int dummy = 1;
+
+	char* name = NULL;
+	uint32_t len = 0;
+	long index;
+	uint32_t first_key_offset = igsd->buffer_offset;
+	while (igsd->buffer_offset < igsd->buffer_size)
+	{
+		od_igbinary_unserialize_get_key(igsd, &name, &len, &index);
+
+		if(name==NULL || len==0) {
+			od_error(E_ERROR, "key for object could not be null");
+		}
+		zend_hash_update(htable, name, len+1, &dummy, sizeof(int), NULL);
+
+		od_wrapper_skip_value(igsd);
+	}
+	igsd->buffer_offset = first_key_offset;
+
+	ODBucket* bkt = NULL;
+	uint32_t i;
+	if (od_obj->od_properties && od_obj->od_properties->buckets) {
+		//add new properties here
+		for (i=0; i<od_obj->od_properties->size; i++) {
+			bkt = od_obj->od_properties->buckets + i;
+
+			if (OD_IS_NEW(*bkt) && bkt->data!=NULL) {
+				zend_hash_update(htable, (char*)bkt->key, bkt->key_len+1, &dummy, sizeof(int), NULL);
+			}
+		}
+	}
+
+	Bucket* p = od_obj->zo.ce->default_properties.pListHead;
+	while (p!=NULL) {
+		if(p->pData && !zend_hash_quick_exists(htable, p->arKey, p->nKeyLength, p->h)) {
+			if(od_hash_find(od_obj->od_properties, p->arKey, p->nKeyLength-1, OD_HASH_VALUE(p->h), &bkt) == FAILURE && (!bkt || !OD_IS_OCCUPIED(*bkt))) {
+				zend_hash_quick_add(htable, p->arKey, p->nKeyLength, p->h, &dummy, sizeof(int), NULL);
+			}
+		}
+		p = p->pListNext;
+	}
+
+	i = 0;
+	array_init(return_value);
+	for(
+        zend_hash_internal_pointer_reset(htable);
+        zend_hash_has_more_elements(htable) == SUCCESS;
+        zend_hash_move_forward(htable))
+    {
+        int type;
+        type = zend_hash_get_current_key_ex(htable, &name, &len, &index, 0, NULL);
+        add_index_stringl(return_value, i, name, len-1, 1);
+        i += 1;
+    }
+
+	zend_hash_destroy(htable);
+	FREE_HASHTABLE(htable);
 }

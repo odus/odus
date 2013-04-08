@@ -116,7 +116,7 @@ static zend_function *od_wrapper_get_method(zval **object_ptr, char *method_name
 static inline void od_wrapper_lazy_init(zval* obj, od_wrapper_object* od_obj);
 
 static zval* od_wrapper_unserialize(od_igbinary_unserialize_data *igsd);
-static int od_wrapper_skip_value(od_igbinary_unserialize_data *igsd);
+extern int od_wrapper_skip_value(od_igbinary_unserialize_data *igsd);
 
 void search_member(od_wrapper_object* od_obj, const char* member_name, uint32_t member_len, uint32_t hash, ODBucket** ret_bkt, member_pos* ret_pos);
 static int search_property(od_wrapper_object* od_obj,zend_property_info *property_info, ODBucket** ret_bkt);

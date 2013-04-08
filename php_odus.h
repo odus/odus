@@ -34,6 +34,7 @@ PHP_FUNCTION(od_format_version);
 PHP_FUNCTION(od_format_match);
 PHP_FUNCTION(od_overwrite_function);
 PHP_FUNCTION(od_refresh_odwrapper);
+PHP_FUNCTION(od_getobjectkeys_odwrapper);
 
 /** Binary protocol version of igbinary. */
 #define OD_IGBINARY_FORMAT_VERSION 0x4F440001 //OD01
