@@ -64,7 +64,7 @@ show("refresh success");
 } else {
 show("refresh fail");
 }
-
+?>
 --EXPECT--
 5
 6

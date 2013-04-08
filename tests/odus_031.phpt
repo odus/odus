@@ -1,5 +1,5 @@
 --TEST--
-Test od_refresh_odwrapper()
+Test od_getobjectkeys_odwrapper()
 --SKIPIF--
 <?php if (!extension_loaded("odus")) print "skip"; ?>
 --FILE--
@@ -67,6 +67,7 @@ $keys1 = array_keys($ps);
 show(judgeEqual($keys1, $keys)?"equal":"not equal");
 
 }
+?>
 
 --EXPECT--
 not support
