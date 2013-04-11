@@ -38,7 +38,7 @@ zend_function_entry odus_functions[] = {
 	PHP_FE(od_format_match,	NULL)
 	PHP_FE(od_overwrite_function,	NULL)
 	PHP_FE(od_refresh_odwrapper,	NULL)
-	PHP_FE(od_getobjectkeys_odwrapper, NULL)
+	PHP_FE(od_getobjectkeys_without_classname, NULL)
 	{NULL, NULL, NULL}	/* Must be the last line in odus_functions[] */
 };
 /* }}} */
@@ -738,10 +738,10 @@ PHP_FUNCTION(od_refresh_odwrapper)
 	RETURN_BOOL(1);
 }
 
-PHP_FUNCTION(od_getobjectkeys_odwrapper)
+PHP_FUNCTION(od_getobjectkeys_without_classname)
 {
 	zval* obj = NULL;
-	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z",&obj)) {
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z", &obj)) {
 		RETURN_BOOL(0);
 	}
 
@@ -752,6 +752,7 @@ PHP_FUNCTION(od_getobjectkeys_odwrapper)
 	zend_object *zobj;
 	zobj = (zend_object *)zend_object_store_get_object(obj TSRMLS_CC);
 	od_wrapper_object* od_obj = (od_wrapper_object*)zobj;
+
 	od_igbinary_unserialize_data* igsd = &(od_obj->igsd);
 
 	HashTable *htable;
@@ -786,6 +787,8 @@ PHP_FUNCTION(od_getobjectkeys_odwrapper)
 
 			if (OD_IS_NEW(*bkt) && bkt->data!=NULL) {
 				zend_hash_update(htable, (char*)bkt->key, bkt->key_len+1, &dummy, sizeof(int), NULL);
+			} else if (OD_IS_UNSET(*bkt) && bkt) {
+				zend_hash_del(htable, (char*)bkt->key, bkt->key_len+1);
 			}
 		}
 	}
@@ -793,24 +796,38 @@ PHP_FUNCTION(od_getobjectkeys_odwrapper)
 	Bucket* p = od_obj->zo.ce->default_properties.pListHead;
 	while (p!=NULL) {
 		if(p->pData && !zend_hash_quick_exists(htable, p->arKey, p->nKeyLength, p->h)) {
-			if(od_hash_find(od_obj->od_properties, p->arKey, p->nKeyLength-1, OD_HASH_VALUE(p->h), &bkt) == FAILURE && (!bkt || !OD_IS_OCCUPIED(*bkt))) {
+			if(!od_obj->od_properties ||
+				(od_hash_find(od_obj->od_properties, p->arKey, p->nKeyLength-1, OD_HASH_VALUE(p->h), &bkt) == FAILURE 
+					&& (!bkt || !OD_IS_OCCUPIED(*bkt)))) {
 				zend_hash_quick_add(htable, p->arKey, p->nKeyLength, p->h, &dummy, sizeof(int), NULL);
 			}
 		}
 		p = p->pListNext;
 	}
 
+	char className[] = "className";
+	ulong hash_classname = zend_get_hash_value(className, sizeof(className));
+	ulong p_hash;
 	i = 0;
+	int type;
+	HashPosition pos;
+	char *prop_name, *class_name;
 	array_init(return_value);
-	for(
-        zend_hash_internal_pointer_reset(htable);
-        zend_hash_has_more_elements(htable) == SUCCESS;
-        zend_hash_move_forward(htable))
+    for(zend_hash_internal_pointer_reset_ex(htable, &pos);
+		(type = zend_hash_get_current_key_ex(htable, &name, &len, &index, 0, &pos)) != HASH_KEY_NON_EXISTANT;
+		zend_hash_move_forward_ex(htable, &pos))
     {
-        int type;
-        type = zend_hash_get_current_key_ex(htable, &name, &len, &index, 0, NULL);
-        add_index_stringl(return_value, i, name, len-1, 1);
-        i += 1;
+    	if (pos->h == hash_classname && len == sizeof(className))
+		{
+			if (memcmp(name, className, len) == 0) {
+				continue;
+			}
+		}
+		if (zend_check_property_access(zobj, name, len-1 TSRMLS_CC) == SUCCESS) {
+			zend_unmangle_property_name(name, len-1, &class_name, &prop_name);
+        	add_index_stringl(return_value, i, prop_name, strlen(prop_name), 1);
+        	i += 1;
+        }
     }
 
 	zend_hash_destroy(htable);

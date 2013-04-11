@@ -1,5 +1,5 @@
 --TEST--
-Test od_getobjectkeys_odwrapper()
+Test od_getobjectkeys_without_classname()
 --SKIPIF--
 <?php if (!extension_loaded("odus")) print "skip"; ?>
 --FILE--
@@ -24,6 +24,21 @@ class World
 	public $objects = null;
 	public $customRides = array('zzzzzzz');
 	public $element = null;
+	protected $prot = "prot";
+	private $priv = "priv";
+	public $className = "World";
+
+	public function callGetKeys() {
+		$ps = get_object_vars($this);
+		unset($ps["className"]);
+		$keys1 = array_keys($ps);
+		return $keys1;
+	}
+
+	public function callOdGetKeys() {
+		$keys = od_getobjectkeys_without_classname($this);
+		return $keys;
+	}
 }
 
 class WorldElement
@@ -42,31 +57,39 @@ $data1 = new ODWrapper(od_serialize($w1));
 $data1->someStr = "someStr";
 $data1->someStr2 = "someStr2";
 
-$keys = od_getobjectkeys_odwrapper($w1);
+$keys = od_getobjectkeys_without_classname($w1);
 show(empty($keys)?"not support":"support");
 
-$keys = od_getobjectkeys_odwrapper($data1);
+$keys = od_getobjectkeys_without_classname($data1);
 show(empty($keys)?"not support":"support");
 show(print_r($keys, true));
 $ps = get_object_vars($data1);
+unset($ps["className"]);
 $keys1 = array_keys($ps);
 show(print_r($keys1, true));
 show(judgeEqual($keys1, $keys)?"equal":"not equal");
 
-$keys = od_getobjectkeys_odwrapper("1234");
+$keys = od_getobjectkeys_without_classname("1234");
 show(empty($keys)?"not support":"support");
 
 for ($i=0;$i<3;$i++) {
 
-$keys = od_getobjectkeys_odwrapper($data1->element);
+$keys = od_getobjectkeys_without_classname($data1->element);
 show(empty($keys)?"not support":"support");
 //show(print_r($keys, true));
 $ps = get_object_vars($data1->element);
+unset($ps["className"]);
 $keys1 = array_keys($ps);
 //show(print_r($keys1, true));
 show(judgeEqual($keys1, $keys)?"equal":"not equal");
 
 }
+
+$keys1 = $data1->callGetKeys();
+$keys = $data1->callOdGetKeys();
+show(print_r($keys1, true));
+show(judgeEqual($keys1, $keys)?"equal":"not equal");
+
 ?>
 
 --EXPECT--
@@ -100,3 +123,17 @@ support
 equal
 support
 equal
+Array
+(
+    [0] => v
+    [1] => objects
+    [2] => customRides
+    [3] => element
+    [4] => prot
+    [5] => priv
+    [6] => someStr2
+    [7] => someStr
+)
+
+equal
+
