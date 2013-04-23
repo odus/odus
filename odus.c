@@ -38,7 +38,7 @@ zend_function_entry odus_functions[] = {
 	PHP_FE(od_format_match,	NULL)
 	PHP_FE(od_overwrite_function,	NULL)
 	PHP_FE(od_refresh_odwrapper,	NULL)
-	PHP_FE(od_getobjectkeys_without_classname, NULL)
+	PHP_FE(od_getobjectkeys_without_key, NULL)
 	{NULL, NULL, NULL}	/* Must be the last line in odus_functions[] */
 };
 /* }}} */
@@ -738,10 +738,13 @@ PHP_FUNCTION(od_refresh_odwrapper)
 	RETURN_BOOL(1);
 }
 
-PHP_FUNCTION(od_getobjectkeys_without_classname)
+PHP_FUNCTION(od_getobjectkeys_without_key)
 {
 	zval* obj = NULL;
-	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z", &obj)) {
+	char *key = NULL;
+	int key_len;
+
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z|s", &obj, &key, &key_len)) {
 		RETURN_BOOL(0);
 	}
 
@@ -805,8 +808,11 @@ PHP_FUNCTION(od_getobjectkeys_without_classname)
 		p = p->pListNext;
 	}
 
-	char className[] = "className";
-	ulong hash_classname = zend_get_hash_value(className, sizeof(className));
+	ulong hash_key = 0;
+	if (key)
+	{
+		hash_key = zend_get_hash_value(key, key_len+1);
+	}
 	ulong p_hash;
 	i = 0;
 	int type;
@@ -817,9 +823,9 @@ PHP_FUNCTION(od_getobjectkeys_without_classname)
 		(type = zend_hash_get_current_key_ex(htable, &name, &len, &index, 0, &pos)) != HASH_KEY_NON_EXISTANT;
 		zend_hash_move_forward_ex(htable, &pos))
     {
-    	if (pos->h == hash_classname && len == sizeof(className))
+    	if (key && pos->h == hash_key && len == key_len+1)
 		{
-			if (memcmp(name, className, len) == 0) {
+			if (memcmp(name, key, len) == 0) {
 				continue;
 			}
 		}
