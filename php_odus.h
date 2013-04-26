@@ -35,6 +35,7 @@ PHP_FUNCTION(od_format_match);
 PHP_FUNCTION(od_overwrite_function);
 PHP_FUNCTION(od_refresh_odwrapper);
 PHP_FUNCTION(od_getobjectkeys_without_key);
+PHP_FUNCTION(od_collect_memory);
 
 /** Binary protocol version of igbinary. */
 #define OD_IGBINARY_FORMAT_VERSION 0x4F440001 //OD01
@@ -51,6 +52,7 @@ ZEND_BEGIN_MODULE_GLOBALS(odus)
 	zend_bool remove_default;
 	zend_bool od_throw_exceptions;
 	zend_bool od_reduce_fatals;
+	zend_bool auto_collect_memory;
 ZEND_END_MODULE_GLOBALS(odus)
 
 /* In every utility function you add that needs to use variables 

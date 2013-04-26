@@ -8,6 +8,7 @@
 #include "od_def.h"
 #include "od_hash.h"
 #include "od_igbinary.h"
+#include "zend_llist.h"
 
 ZEND_EXTERN_MODULE_GLOBALS(odus);
 
@@ -30,6 +31,8 @@ ZEND_END_ARG_INFO()
 static zend_class_entry* od_wrapper_ce = NULL;
 zend_object_handlers od_wrapper_object_handlers;
 
+static zend_llist * memory_collection_list = NULL;
+
 // Static Core Functions Definition
 
 static zend_object_value od_wrapper_new(zend_class_entry *ce TSRMLS_DC);
@@ -38,6 +41,8 @@ static zend_object_value od_wrapper_register_object(od_wrapper_object* intern TS
 
 static inline void init_od_wrapper(zval *object, uint8_t* data_str, uint32_t data_len, char* class_name, int class_name_len, uint32_t member_num, uint32_t value_len, uint32_t offset);
 static inline zval* new_od_wrapper(zval *object, uint8_t* data_str, uint32_t data_len, char* class_name, int class_name_len, uint32_t member_num, uint32_t value_len, uint32_t offset);
+
+static inline zend_llist* get_memory_collection_list();
 
 OD_WRAPPER_METHOD(__construct)
 {
@@ -51,6 +56,12 @@ OD_WRAPPER_METHOD(__construct)
 
 	if(data==NULL || data->type!=IS_STRING || Z_STRVAL_P(data)==NULL || Z_STRLEN_P(data)<=0) {
 		od_error(E_ERROR,"parameter for the constructor of ODWrapper must be valid string");
+	}
+
+	zend_llist *collection_list = get_memory_collection_list();
+	if (collection_list != NULL)
+	{
+		zend_llist_add_element(collection_list, &data);
 	}
 
 	od_igbinary_unserialize_data igsd;
@@ -131,6 +142,46 @@ static void od_wrapper_modify_property(zval** variable_ptr, zval* value, zend_pr
 // Function Implementation
 
 // Exported Functions
+
+void collect_memory(TSRMLS_D) {
+	zend_llist *collection_list = get_memory_collection_list();
+	if (collection_list != NULL)
+	{
+		debug("[ODWRAPPER before collect memory (%d,%s,%s)] list num=%d \n", OD_LINE, OD_FUNCTION, OD_FILE, zend_llist_count(collection_list));
+		#ifdef OD_DEBUG_MEM
+		uint32_t before_collect_memory = zend_memory_usage(0);
+		uint32_t before_real_memory = zend_memory_usage(1);
+		#endif
+
+		zend_llist_clean(collection_list);
+
+		debug("[ODWRAPPER after collect memory (%d,%s,%s)] list num=%d \n", OD_LINE, OD_FUNCTION, OD_FILE, zend_llist_count(collection_list));
+		#ifdef OD_DEBUG_MEM
+		uint32_t after_collect_memory = zend_memory_usage(0);
+		uint32_t after_real_memory = zend_memory_usage(1);
+		debug("[ODWRAPPER memory collected (%d, %d, %d))]\n", before_collect_memory, after_collect_memory, after_collect_memory-before_collect_memory);
+		debug("[ODWRAPPER real memory collected (%d, %d, %d))]\n", before_real_memory, after_real_memory, after_real_memory-before_real_memory);
+		#endif
+	}
+}
+
+static void collect_root_string(zval **root_string) {
+	ZVAL_REFCOUNT(*root_string) = 1;
+	zval_ptr_dtor(root_string);
+
+	//zval_dtor(root_string);
+
+}
+
+zend_llist* get_memory_collection_list() {
+	if (memory_collection_list == NULL) {
+		if (ODUS_G(auto_collect_memory)) {
+			memory_collection_list = emalloc(sizeof(zend_llist));
+			zend_llist_init(memory_collection_list, sizeof(zval*),  (llist_dtor_func_t) collect_root_string, 0);
+		}
+	}
+	return memory_collection_list;
+}
 
 void od_wrapper_init(TSRMLS_D)
 {
@@ -1687,3 +1738,4 @@ void od_wrapper_modify_property(zval** variable_ptr, zval* value, zend_property_
 		zval_ptr_dtor(&garbage);
 	}
 }
+

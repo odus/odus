@@ -39,6 +39,7 @@ zend_function_entry odus_functions[] = {
 	PHP_FE(od_overwrite_function,	NULL)
 	PHP_FE(od_refresh_odwrapper,	NULL)
 	PHP_FE(od_getobjectkeys_without_key, NULL)
+	PHP_FE(od_collect_memory, NULL)
 	{NULL, NULL, NULL}	/* Must be the last line in odus_functions[] */
 };
 /* }}} */
@@ -97,6 +98,7 @@ PHP_INI_BEGIN()
     STD_PHP_INI_BOOLEAN("odus.remove_default",      "0",    PHP_INI_SYSTEM, OnUpdateBool,              remove_default,         zend_odus_globals, odus_globals)
     STD_PHP_INI_BOOLEAN("odus.throw_exceptions",      "0",    PHP_INI_SYSTEM, OnUpdateBool,              od_throw_exceptions,         zend_odus_globals, odus_globals)
     STD_PHP_INI_BOOLEAN("odus.reduce_fatals",      "0",    PHP_INI_SYSTEM, OnUpdateBool,              od_reduce_fatals,         zend_odus_globals, odus_globals)
+    STD_PHP_INI_BOOLEAN("odus.auto_collect_memory",      "0",    PHP_INI_SYSTEM, OnUpdateBool,              auto_collect_memory,         zend_odus_globals, odus_globals)
 PHP_INI_END()
 
 zend_class_entry *odus_exception_ce;
@@ -838,4 +840,9 @@ PHP_FUNCTION(od_getobjectkeys_without_key)
 
 	zend_hash_destroy(htable);
 	FREE_HASHTABLE(htable);
+}
+
+PHP_FUNCTION(od_collect_memory)
+{
+	collect_memory();
 }
