@@ -36,8 +36,12 @@ static zend_object_value od_wrapper_new(zend_class_entry *ce TSRMLS_DC);
 static od_wrapper_object* od_wrapper_object_new(zend_class_entry *ce TSRMLS_DC);
 static zend_object_value od_wrapper_register_object(od_wrapper_object* intern TSRMLS_DC);
 
-static inline void init_od_wrapper(zval *object, uint8_t* data_str, uint32_t data_len, char* class_name, int class_name_len, uint32_t member_num, uint32_t value_len, uint32_t offset);
-static inline zval* new_od_wrapper(zval *object, uint8_t* data_str, uint32_t data_len, char* class_name, int class_name_len, uint32_t member_num, uint32_t value_len, uint32_t offset);
+static inline void init_od_wrapper(zval *object, od_igbinary_unserialize_data* parent_igsd, uint8_t* data_str, uint32_t data_len,
+									char* class_name, int class_name_len, uint32_t member_num, uint32_t value_len, uint32_t offset);
+static inline zval* new_od_wrapper(zval *object, od_igbinary_unserialize_data* parent_igsd, uint8_t* data_str, uint32_t data_len,
+									char* class_name, int class_name_len, uint32_t member_num, uint32_t value_len, uint32_t offset);
+
+static int od_wrapper_migrate(od_igbinary_unserialize_data *igsd, uint32_t version TSRMLS_DC);
 
 OD_WRAPPER_METHOD(__construct)
 {
@@ -55,25 +59,38 @@ OD_WRAPPER_METHOD(__construct)
 
 	od_igbinary_unserialize_data igsd;
 
+	od_igbinary_unserialize_data_init(&igsd);
+
 	igsd.buffer = Z_STRVAL_P(data);
 	igsd.buffer_size = Z_STRLEN_P(data);
 	igsd.buffer_offset=0;
 
+	igsd.root_id = Z_STRVAL_P(data);
+	
 	//version check
-	od_igbinary_unserialize_header(&igsd);
+	uint32_t version = -1;
+	od_igbinary_unserialize_header(&igsd, &version TSRMLS_CC);
+
+	od_wrapper_migrate(&igsd, version TSRMLS_CC);
+
+	if (igsd.compact_strings) {
+		// Will alloc memory for string table, don't forget to free it in destructor!
+		od_igbinary_unserialize_init_string_table(&igsd TSRMLS_CC);
+	}
 
 	char* class_name;
 	uint32_t class_name_len;
 
 	uint32_t class_info_offset = igsd.buffer_offset;
 
-	od_igbinary_unserialize_chararray(&igsd, od_igbinary_get_type(&igsd), &class_name, &class_name_len);
+	od_igbinary_unserialize_class_name(&igsd, od_igbinary_get_type(&igsd), &class_name, &class_name_len);
 
 	int member_num = od_igbinary_get_member_num(&igsd,od_igbinary_get_type(&igsd));
 
 	int value_len = od_igbinary_get_value_len(&igsd);
 
-	init_od_wrapper(getThis(),igsd.buffer + class_info_offset, igsd.buffer_size - class_info_offset, class_name, class_name_len, member_num, value_len, igsd.buffer_offset - class_info_offset);
+	init_od_wrapper(getThis(), &igsd, igsd.buffer + class_info_offset, igsd.buffer_offset - class_info_offset + value_len, class_name, class_name_len,
+				member_num, value_len, igsd.buffer_offset - class_info_offset);
 }
 
 static zend_function_entry od_wrapper_functions[] = {
@@ -131,6 +148,29 @@ static void od_wrapper_modify_property(zval** variable_ptr, zval* value, zend_pr
 // Function Implementation
 
 // Exported Functions
+
+static int od_wrapper_migrate(od_igbinary_unserialize_data *igsd, uint32_t version TSRMLS_DC)
+{
+	uint32_t current_version = OD_IGBINARY_FORMAT_VERSION;
+	if (version < current_version) {
+		zval *val = NULL;
+		uint8_t * old_buf = igsd->buffer;
+
+		// Expect od_igbinary_unserialize handles old format correctly.
+		MAKE_STD_ZVAL(val);
+		od_igbinary_unserialize(igsd->buffer, igsd->buffer_size, &val TSRMLS_CC);
+
+		od_igbinary_serialize(&igsd->buffer, &igsd->buffer_size, val TSRMLS_CC);
+
+		// Redo unserializing header.
+		igsd->buffer_offset = 0;
+
+		uint32_t version = -1;
+		od_igbinary_unserialize_header(igsd, &version TSRMLS_CC);
+
+		// TODO: release old_buf;
+	}
+}
 
 void od_wrapper_init(TSRMLS_D)
 {
@@ -209,7 +249,8 @@ zend_object_value od_wrapper_register_object(od_wrapper_object* intern TSRMLS_DC
 	return rv;
 }
 
-void init_od_wrapper(zval *object, uint8_t* data_str, uint32_t data_len, char* class_name, int class_name_len, uint32_t member_num, uint32_t value_len, uint32_t offset)
+void init_od_wrapper(zval *object, od_igbinary_unserialize_data* parent_igsd, uint8_t* data_str, uint32_t data_len,
+					char* class_name, int class_name_len, uint32_t member_num, uint32_t value_len, uint32_t offset)
 {
 	// data_str will points to the start of class
 	// data_str + offset will points to the start of the first member
@@ -231,6 +272,8 @@ void init_od_wrapper(zval *object, uint8_t* data_str, uint32_t data_len, char* c
 
 	od_igbinary_unserialize_data* igsd = &(od_obj->igsd);
 
+	od_igbinary_unserialize_data_clone(igsd, parent_igsd);
+
 	igsd->buffer = data_str;
 	igsd->buffer_size = data_len;
 	igsd->buffer_offset = offset;
@@ -247,7 +290,8 @@ void init_od_wrapper(zval *object, uint8_t* data_str, uint32_t data_len, char* c
 	od_obj->od_properties = NULL;
 }
 
-zval* new_od_wrapper(zval *object, uint8_t* data_str, uint32_t data_len, char* class_name, int class_name_len, uint32_t member_num, uint32_t value_len, uint32_t offset)
+zval* new_od_wrapper(zval *object, od_igbinary_unserialize_data* parent_igsd, uint8_t* data_str, uint32_t data_len,
+					char* class_name, int class_name_len, uint32_t member_num, uint32_t value_len, uint32_t offset)
 {
 	if(data_str==NULL || data_len<=0) return NULL;
 
@@ -258,7 +302,7 @@ zval* new_od_wrapper(zval *object, uint8_t* data_str, uint32_t data_len, char* c
 	object->type = IS_OBJECT;
 	object->value.obj = od_wrapper_new(od_wrapper_ce);
 
-	init_od_wrapper(object,data_str,data_len,class_name,class_name_len,member_num,value_len,offset);
+	init_od_wrapper(object,parent_igsd,data_str,data_len,class_name,class_name_len,member_num,value_len,offset);
 
 	return object;
 }
@@ -1095,11 +1139,14 @@ int od_wrapper_skip_value(od_igbinary_unserialize_data *igsd)
 		case od_igbinary_type_object8:
 		case od_igbinary_type_object16:
 		case od_igbinary_type_object32:
+		case od_igbinary_type_object_id8:
+		case od_igbinary_type_object_id16:
+		case od_igbinary_type_object_id32:
 		{
 			char* class_name;
 			uint32_t class_name_len;
 
-			od_igbinary_unserialize_chararray(igsd, t, &class_name, &class_name_len);
+			od_igbinary_unserialize_class_name(igsd, t, &class_name, &class_name_len);
 
 			od_igbinary_get_member_num(igsd,od_igbinary_get_type(igsd));
 
@@ -1156,14 +1203,17 @@ int od_wrapper_skip_value(od_igbinary_unserialize_data *igsd)
 			break;
 		case od_igbinary_type_long8p:
 		case od_igbinary_type_long8n:
+		case od_igbinary_type_static_string_id8:
 			igsd->buffer_offset +=1;
 			break;
 		case od_igbinary_type_long16p:
 		case od_igbinary_type_long16n:
+		case od_igbinary_type_static_string_id16:
 			igsd->buffer_offset +=2;
 			break;
 		case od_igbinary_type_long32p:
 		case od_igbinary_type_long32n:
+		case od_igbinary_type_static_string_id32:
 			igsd->buffer_offset +=4;
 			break;
 		case od_igbinary_type_long64p:
@@ -1178,7 +1228,7 @@ int od_wrapper_skip_value(od_igbinary_unserialize_data *igsd)
 		case od_igbinary_type_string_empty:
 			break;
 		default:
-			od_error(E_ERROR, "od_igbinary_unserialize_zval: unknown type '%02x', position %zu", t, igsd->buffer_offset);
+			od_error(E_ERROR, "od_wrapper_skip_value: unknown type '%02x', position %zu", t, igsd->buffer_offset);
 			break;
 	}
 
@@ -1200,20 +1250,21 @@ zval* od_wrapper_unserialize(od_igbinary_unserialize_data *igsd)
 		case od_igbinary_type_object8:
 		case od_igbinary_type_object16:
 		case od_igbinary_type_object32:
+		case od_igbinary_type_object_id8:
+		case od_igbinary_type_object_id16:
+		case od_igbinary_type_object_id32:
 		{
 			char* class_name;
 			uint32_t class_name_len;
 
 			uint32_t class_info_offset = igsd->buffer_offset-1;
-
-			od_igbinary_unserialize_chararray(igsd, t, &class_name, &class_name_len);
+			od_igbinary_unserialize_class_name(igsd, t, &class_name, &class_name_len);
 
 			int member_num = od_igbinary_get_member_num(igsd,od_igbinary_get_type(igsd));
 
 			int value_len = od_igbinary_get_value_len(igsd);
-
 			MAKE_STD_ZVAL(val);
-			val = new_od_wrapper(val,igsd->buffer + class_info_offset, igsd->buffer_offset - class_info_offset + value_len, class_name, class_name_len, member_num, value_len, igsd->buffer_offset - class_info_offset);
+			val = new_od_wrapper(val, igsd, igsd->buffer + class_info_offset, igsd->buffer_offset - class_info_offset + value_len, class_name, class_name_len, member_num, value_len, igsd->buffer_offset - class_info_offset);
 
 			igsd->buffer_offset += value_len;
 		}
@@ -1293,6 +1344,24 @@ zval* od_wrapper_unserialize(od_igbinary_unserialize_data *igsd)
 			MAKE_STD_ZVAL(val);
 			ZVAL_EMPTY_STRING(val);
 			break;
+		case od_igbinary_type_static_string_id8:
+		case od_igbinary_type_static_string_id16:
+		case od_igbinary_type_static_string_id32:
+		{
+			char *tmp_chararray;
+			uint32_t tmp_uint32_t;
+
+			if (od_igbinary_unserialize_static_string(igsd, t, &tmp_chararray, &tmp_uint32_t TSRMLS_CC)) {
+				break;
+			}
+
+			MAKE_STD_ZVAL(val);
+			Z_TYPE_P(val) = IS_STRING;
+			Z_STRVAL_P(val) = tmp_chararray;
+			Z_STRLEN_P(val) = tmp_uint32_t;
+			SET_OD_REFCOUNT(val);
+		}
+			break;
 		case od_igbinary_type_long8p:
 		case od_igbinary_type_long8n:
 		case od_igbinary_type_long16p:
@@ -1333,7 +1402,7 @@ zval* od_wrapper_unserialize(od_igbinary_unserialize_data *igsd)
 		}
 			break;
 		default:
-			od_error(E_ERROR, "od_igbinary_unserialize_zval: unknown type '%02x', position %zu", t, igsd->buffer_offset);
+			od_error(E_ERROR, "od_wrapper_unserialize: unknown type '%02x', position %zu", t, igsd->buffer_offset);
 			break;
 	}
 
@@ -1347,7 +1416,6 @@ zval* od_wrapper_unserialize(od_igbinary_unserialize_data *igsd)
 
 void search_member(od_wrapper_object* od_obj, const char* member_name, uint32_t member_len, uint32_t hash, ODBucket** ret_bkt, member_pos* ret_pos)
 {
-
 	if(!ret_bkt && !ret_pos) {
 		od_error(E_ERROR, "at least one of ret_bkt or ret_pos should not be null");
 		return;
@@ -1476,7 +1544,6 @@ void get_all_members(od_wrapper_object* od_obj)
 
 	//assert
 	//od_obj->igsd->offset will always points to the first member now
-
 	uint32_t first_key_offset = igsd->buffer_offset;
 
 	while(igsd->buffer_offset < igsd->buffer_size)
@@ -1486,7 +1553,6 @@ void get_all_members(od_wrapper_object* od_obj)
 		if(name==NULL || len==0) {
 			od_error(E_ERROR, "key for object could not be null");
 		}
-
 		p_hash = zend_get_hash_value(name,len+1);
 		o_hash = OD_HASH_VALUE(p_hash);
 
@@ -1512,7 +1578,6 @@ void get_all_members(od_wrapper_object* od_obj)
 			}
 		}
 	}
-
 	igsd->buffer_offset = first_key_offset;
 }
 

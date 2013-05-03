@@ -42,7 +42,7 @@
 #define min(a,b) ((a)<(b)?(a):(b))
 
 #ifdef OD_DEBUG
-	#define od_error(type,fmt,args ...) OD_CREATE_FATAL; zend_error(type, "[ODWRAPPER (%d,%s,%s)] [ " fmt " ]\n", OD_LINE, OD_FUNCTION, OD_FILE, ##args)
+	#define od_error(type,fmt,args ...) zend_error(type, "[ODWRAPPER (%d,%s,%s)] [ " fmt " ]\n", OD_LINE, OD_FUNCTION, OD_FILE, ##args); OD_CREATE_FATAL
 #else
 	#define od_error(type,fmt,args ...) zend_error(type, "[ODWRAPPER (%d,%s,%s)] [ " fmt " ]\n", OD_LINE, OD_FUNCTION, OD_FILE, ##args)
 #endif

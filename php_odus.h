@@ -37,20 +37,23 @@ PHP_FUNCTION(od_refresh_odwrapper);
 PHP_FUNCTION(od_getobjectkeys_without_classname);
 
 /** Binary protocol version of igbinary. */
-#define OD_IGBINARY_FORMAT_VERSION 0x4F440001 //OD01
+#define OD_IGBINARY_FORMAT_VERSION_01 0x4F440001
+#define OD_IGBINARY_FORMAT_VERSION_02 0x4F440002
+
+#define OD_IGBINARY_FORMAT_VERSION OD_IGBINARY_FORMAT_VERSION_02     // current version
 
 #define _TEXT(t) #t
 #define TEXT(t) _TEXT(t)
 
 #define OD_IGBINARY_VERSION_BYTES  4
-#define OD_RESERVED_BUFFER_LEN 1024
 
-#define OD_VERSION "1.0.13"
+#define OD_VERSION "2.0.1"
 
 ZEND_BEGIN_MODULE_GLOBALS(odus)
 	zend_bool remove_default;
 	zend_bool od_throw_exceptions;
 	zend_bool od_reduce_fatals;
+	zend_bool compact_strings;
 ZEND_END_MODULE_GLOBALS(odus)
 
 /* In every utility function you add that needs to use variables 
