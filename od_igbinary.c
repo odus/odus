@@ -224,7 +224,7 @@ inline int od_igbinary_serialize_data_init(od_igbinary_serialize_data *igsd, boo
 	}
 	igsd->compact_strings = (bool)ODUS_G(compact_strings);
 
-	igsd->string_count = 0;
+	igsd->strings_count = 0;
 	igsd->string_table_update = false;
 
 	igsd->compress_value_len = true;
@@ -536,9 +536,9 @@ inline int od_igbinary_serialize_string(od_igbinary_serialize_data *igsd, const 
 		}
 	} else {	/* !igsd->scalar && igsd->compact_strings */
 		if (hash_si_find(&igsd->strings, s, len, i) == 1) {
-			hash_si_insert(&igsd->strings, s, len, igsd->string_count);
-			*i = igsd->string_count;
-			igsd->string_count += 1;
+			hash_si_insert(&igsd->strings, s, len, igsd->strings_count);
+			*i = igsd->strings_count;
+			igsd->strings_count += 1;
 		}
 
 		if (*i <= 0xff) {
@@ -760,7 +760,7 @@ inline int od_igbinary_serialize_array(od_igbinary_serialize_data *igsd, zval *z
 inline int od_igbinary_serialize_string_table(od_igbinary_serialize_data *igsd TSRMLS_DC) {
 	int i = 0;
 	struct hash_si *h = &igsd->strings;
-	uint32_t *indexes = (int*)emalloc(sizeof(int) * igsd->string_count);
+	uint32_t *indexes = (int*)emalloc(sizeof(int) * igsd->strings_count);
 	uint32_t string_table_start = igsd->buffer_size;
 
 	if (!indexes) {
@@ -777,12 +777,12 @@ inline int od_igbinary_serialize_string_table(od_igbinary_serialize_data *igsd T
 		}
 	}
 
-	od_igbinary_serialize32(igsd, igsd->string_count TSRMLS_CC);
+	od_igbinary_serialize32(igsd, igsd->strings_count TSRMLS_CC);
 
 	od_igbinary_serialize32_at(igsd, igsd->buffer_size, OD_IGBINARY_STRING_TABLE_INDEX_OFFSET	TSRMLS_CC);
 
 	// indexes
-	for (i = 0; i < igsd->string_count; i++) {
+	for (i = 0; i < igsd->strings_count; i++) {
 		od_igbinary_serialize32(igsd, indexes[i] TSRMLS_CC);
 	}
 
@@ -812,7 +812,7 @@ inline int od_igbinary_clone_string_table(od_igbinary_serialize_data *igsd, od_i
 		od_igbinary_unserialize_string_from_table(orig, &str, &str_len, string_offset TSRMLS_CC);
 		hash_si_insert(&igsd->strings, str, str_len, i);
 	}
-	igsd->string_count = strings_count;
+	igsd->strings_count = strings_count;
 
 	orig->buffer = buffer_backup;
 	return 0;
@@ -823,19 +823,19 @@ inline int od_igbinary_clone_string_table(od_igbinary_serialize_data *igsd, od_i
 inline int od_igbinary_serialize_update_string_table(od_igbinary_serialize_data *igsd, od_igbinary_unserialize_data *orig, int32_t delta TSRMLS_DC) {
 	int32_t string_table_start = 0;
 	int32_t index_offset = 0;
-	uint32_t original_string_count = 0; 
+	uint32_t original_strings_count = 0;
 
 	char *buffer_backup = orig->buffer;
 	orig->buffer = orig->original_buffer;
 	string_table_start = (int32_t)od_igbinary_unserialize32_at(orig, OD_IGBINARY_STRING_TABLE_START_OFFSET	TSRMLS_CC);
 	index_offset = (int32_t)od_igbinary_unserialize32_at(orig, OD_IGBINARY_STRING_TABLE_INDEX_OFFSET	TSRMLS_CC);
-	original_string_count = od_igbinary_unserialize32_at(orig, index_offset - 4	TSRMLS_CC);
+	original_strings_count = od_igbinary_unserialize32_at(orig, index_offset - 4	TSRMLS_CC);
 
 	if (igsd->string_table_update) {
 		od_igbinary_serialize_string_table(igsd TSRMLS_CC);
 	} else {
 		// Only update the offset.
-		od_igbinary_serialize_memcpy(igsd, orig->buffer + string_table_start, index_offset + original_string_count * 4 - string_table_start);
+		od_igbinary_serialize_memcpy(igsd, orig->buffer + string_table_start, index_offset + original_strings_count * 4 - string_table_start);
 		od_igbinary_serialize32_at(igsd, (uint32_t)(string_table_start + delta), OD_IGBINARY_STRING_TABLE_START_OFFSET	TSRMLS_CC);
 		od_igbinary_serialize32_at(igsd, (uint32_t)(index_offset + delta), OD_IGBINARY_STRING_TABLE_INDEX_OFFSET	TSRMLS_CC);
 	}
@@ -1126,9 +1126,9 @@ inline static int od_igbinary_serialize_object_name(od_igbinary_serialize_data *
 
 	// Always insert object name into string table in ODUS 2.0
 	if (hash_si_find(&igsd->strings, class_name, name_len, i) == 1) {
-		hash_si_insert(&igsd->strings, class_name, name_len, igsd->string_count);
-		*i = igsd->string_count;
-		igsd->string_count += 1;
+		hash_si_insert(&igsd->strings, class_name, name_len, igsd->strings_count);
+		*i = igsd->strings_count;
+		igsd->strings_count += 1;
 	}
 
 	if (*i <= 0xff) {

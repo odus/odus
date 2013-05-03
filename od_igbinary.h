@@ -114,7 +114,7 @@ typedef struct od_igbinary_serialize_data_s {
 	struct hash_si strings;		/**< Hash of already serialized strings. */
 	struct hash_si objects;		/**< Hash of already serialized objects. */
 
-	int string_count;			/**< Serialized string count, used for back referencing */
+	int strings_count;			/**< Serialized string count, used for back referencing */
 	bool string_table_update;	/**< Whether the string table has been updated, used to update string table when serializing an ODWrapper object. */
 
 	bool compress_value_len;	/**< Whether compress the value len (into 1, 2 or 4 bytes) */
