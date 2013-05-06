@@ -45,6 +45,7 @@ typedef struct {
 // Function Definition
 void od_wrapper_init(TSRMLS_D);
 void od_wrapper_shutdown(TSRMLS_D);
+void collect_memory(TSRMLS_D); 
 
 inline uint8_t is_default(char* key, uint key_len, ulong hash, zval* val, HashTable* ht);
 
