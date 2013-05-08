@@ -164,14 +164,27 @@ static int od_wrapper_migrate(od_igbinary_unserialize_data *igsd, uint32_t versi
 {
 	uint32_t current_version = OD_IGBINARY_FORMAT_VERSION;
 	if (version < current_version) {
-		zval *val = NULL;
+		zval *z = NULL;
 		uint8_t * old_buf = igsd->buffer;
 
 		// Expect od_igbinary_unserialize handles old format correctly.
-		MAKE_STD_ZVAL(val);
-		od_igbinary_unserialize(igsd->buffer, igsd->buffer_size, &val TSRMLS_CC);
+		MAKE_STD_ZVAL(z);
+		od_igbinary_unserialize(igsd->buffer, igsd->buffer_size, &z TSRMLS_CC);
 
-		od_igbinary_serialize(&igsd->buffer, &igsd->buffer_size, val TSRMLS_CC);
+		od_igbinary_serialize(&igsd->buffer, &igsd->buffer_size, z TSRMLS_CC);
+
+		// Insert new root string into collection table.
+		zval *z_str;
+		MAKE_STD_ZVAL(z_str);
+		Z_TYPE_P(z_str) = IS_STRING;
+		Z_STRVAL_P(z_str) = igsd->buffer;
+		Z_STRLEN_P(z_str) = igsd->buffer_size;
+		SET_OD_REFCOUNT(z_str);
+		zend_llist *collection_list = get_memory_collection_list();
+		if (collection_list != NULL)
+		{
+			zend_llist_add_element(collection_list, &z_str);
+		}
 
 		// Redo unserializing header.
 		igsd->buffer_offset = 0;
@@ -179,7 +192,7 @@ static int od_wrapper_migrate(od_igbinary_unserialize_data *igsd, uint32_t versi
 		uint32_t version = -1;
 		od_igbinary_unserialize_header(igsd, &version TSRMLS_CC);
 
-		// TODO: release old_buf;
+		zval_ptr_dtor(&z);
 	}
 }
 
