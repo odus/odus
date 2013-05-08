@@ -1457,10 +1457,11 @@ zval* od_wrapper_unserialize(od_igbinary_unserialize_data *igsd)
 			break;
 	}
 
-	if(val!=NULL)
-	{
-		val->refcount ++;
-	}
+	// Fix memory leak, val->refcount has been set to 1 in MAKE_STD_ZVAL.
+	// if(val!=NULL)
+	// {
+	// 	val->refcount ++;
+	// }
 
 	return val;
 }
@@ -1623,7 +1624,8 @@ void get_all_members(od_wrapper_object* od_obj)
 				member = od_wrapper_unserialize(igsd);
 
 				if(member) {
-					member->refcount ++;
+					// Fix memory leak, don't increase the refcount because it's the first ref here.
+					//member->refcount ++;
 					zend_hash_quick_update(od_obj->zo.properties,name,len+1,p_hash,&member,sizeof(zval*),NULL);
 				}
 			}
