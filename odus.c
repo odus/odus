@@ -41,6 +41,7 @@ zend_function_entry odus_functions[] = {
 	PHP_FE(od_refresh_odwrapper,	NULL)
 	PHP_FE(od_getobjectkeys_without_key, NULL)
 	PHP_FE(od_collect_memory, NULL)
+	PHP_FE(od_reserialize, NULL)
 	{NULL, NULL, NULL}	/* Must be the last line in odus_functions[] */
 };
 /* }}} */
@@ -878,4 +879,22 @@ PHP_FUNCTION(od_getobjectkeys_without_key)
 PHP_FUNCTION(od_collect_memory)
 {
 	collect_memory();
+}
+
+PHP_FUNCTION(od_reserialize)
+{
+	char *string;
+	int string_len;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &string, &string_len) == FAILURE) {
+		RETURN_NULL();
+	}
+
+	if (string_len <= 0) {
+		RETURN_NULL();
+	}
+
+	if (od_wrapper_reserialize((uint8_t *) string, string_len, &return_value TSRMLS_CC)) {
+		RETURN_NULL();
+	}
 }

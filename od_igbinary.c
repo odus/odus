@@ -61,8 +61,6 @@ inline static int od_igbinary_serialize_object(od_igbinary_serialize_data *igsd,
 
 /* }}} */
 /* {{{ Unserializing functions prototypes */
-inline static void od_igbinary_unserialize_data_deinit(od_igbinary_unserialize_data *igsd TSRMLS_DC);
-
 inline static int od_igbinary_unserialize_string(od_igbinary_unserialize_data *igsd, od_igbinary_type t, char **s, uint32_t *len TSRMLS_DC);
 
 inline static int od_igbinary_unserialize_array(od_igbinary_unserialize_data *igsd, od_igbinary_type t, zval **z, int object TSRMLS_DC);
@@ -1408,7 +1406,7 @@ inline int od_igbinary_unserialize_data_clone(od_igbinary_unserialize_data *dest
 
 /* {{{ od_igbinary_unserialize_data_deinit */
 /** Deinits od_igbinary_unserialize_data_init. */
-inline static void od_igbinary_unserialize_data_deinit(od_igbinary_unserialize_data *igsd TSRMLS_DC) {
+inline void od_igbinary_unserialize_data_deinit(od_igbinary_unserialize_data *igsd TSRMLS_DC) {
 	if (igsd->strings) {
 		efree(igsd->strings);
 	}

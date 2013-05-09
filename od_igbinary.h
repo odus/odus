@@ -202,6 +202,8 @@ inline int od_igbinary_unserialize_data_clone(od_igbinary_unserialize_data *dest
 
 inline int od_igbinary_unserialize_init_string_table(od_igbinary_unserialize_data *igsd TSRMLS_DC);
 
+inline void od_igbinary_unserialize_data_deinit(od_igbinary_unserialize_data *igsd TSRMLS_DC);
+
 inline od_igbinary_type od_igbinary_get_type(od_igbinary_unserialize_data *igsd);
 
 inline void od_igbinary_serialize_append_zero(od_igbinary_serialize_data *igsd);
