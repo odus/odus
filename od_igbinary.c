@@ -804,7 +804,7 @@ inline static int od_igbinary_serialize_chararray_ex(od_igbinary_serialize_data 
 
 /* {{{ od_igbinary_serialize_array_key */
 /** Serializes a key of array. */
-inline static int od_igbinary_serialize_array_key(od_igbinary_serialize_data *igsd, int object, int key_type, ulong key_index, char *key, uint key_len TSRMLS_DC) {
+inline static int od_igbinary_serialize_array_key(od_igbinary_serialize_data *igsd, bool object, int key_type, ulong key_index, char *key, uint key_len TSRMLS_DC) {
 	if (key_type==HASH_KEY_IS_LONG) {
 		return od_igbinary_serialize_long(igsd, key_index TSRMLS_CC);
 	} else if (object) {
