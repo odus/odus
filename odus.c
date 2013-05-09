@@ -324,6 +324,12 @@ void deal_with_new_properties(od_wrapper_object* od_obj, od_igbinary_serialize_d
 			uint32_t start_pos = igsd->buffer_size;
 			debug("key %s is new for class %s", bkt->key?bkt->key:"null", OD_CLASS_NAME(od_obj));
 
+			// A new property requires updating string table always.
+			if(igsd->compact_strings && !igsd->string_table_update) {
+				igsd->string_table_update = true;
+				od_igbinary_clone_string_table(igsd, local_igsd TSRMLS_CC);
+			}
+
 			if(bkt->key_len == 0) {
 				od_igbinary_serialize_long(igsd, bkt->hash);
 			} else {
@@ -331,10 +337,6 @@ void deal_with_new_properties(od_wrapper_object* od_obj, od_igbinary_serialize_d
 			}
 
 			zval *z = (zval*)bkt->data;
-			if(!igsd->string_table_update && (z->type == IS_OBJECT || z->type == IS_ARRAY) ) {
-				igsd->string_table_update = true;
-				od_igbinary_clone_string_table(igsd, local_igsd TSRMLS_CC);
-			}
 			normal_od_wrapper_serialize(igsd, (zval*)bkt->data,0);
 			total_len_diff += igsd->buffer_size - start_pos;
 		}
@@ -408,6 +410,7 @@ void deal_with_modified_properties(od_wrapper_object* od_obj, od_igbinary_serial
 			for(i=0;i<modified_num;i++) {
 				if(pos_info[i].data==NULL) {
 					od_igbinary_serialize_memcpy(igsd, OD_LOCAL_OFFSET_POS(*local_igsd), pos_info[i].key_start_offset - local_igsd->buffer_offset);
+					total_len_diff += 0 - (pos_info[i].val_end_offset - pos_info[i].key_start_offset);
 				} else {
 
 					od_igbinary_serialize_memcpy(igsd, OD_LOCAL_OFFSET_POS(*local_igsd), pos_info[i].val_start_offset - local_igsd->buffer_offset);
@@ -415,11 +418,12 @@ void deal_with_modified_properties(od_wrapper_object* od_obj, od_igbinary_serial
 					//serialize value
 					uint32_t value_start = igsd->buffer_size;
 
-					if(!igsd->string_table_update && (pos_info[i].data->type == IS_OBJECT || pos_info[i].data->type == IS_ARRAY) ) {
+					if(igsd->compact_strings && !igsd->string_table_update && (pos_info[i].data->type == IS_OBJECT || pos_info[i].data->type == IS_ARRAY) ) {
 						igsd->string_table_update = true;
 						od_igbinary_clone_string_table(igsd, local_igsd TSRMLS_CC);
 					}
 					normal_od_wrapper_serialize(igsd,pos_info[i].data,0);
+
 					int32_t value_len = igsd->buffer_size - value_start;
 					total_len_diff += value_len - (pos_info[i].val_end_offset - pos_info[i].val_start_offset);
 				}
@@ -587,7 +591,7 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ui
 			}
 		} while (0);
 
-		if (is_root) {
+		if (is_root && igsd->compact_strings) {
 			od_igbinary_serialize_update_string_table(igsd, &local_igsd, total_len_diff TSRMLS_CC);
 		}
 	}
