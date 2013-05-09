@@ -887,18 +887,34 @@ PHP_FUNCTION(od_collect_memory)
 
 PHP_FUNCTION(od_reserialize)
 {
-	char *string;
-	int string_len;
+	zval* z = NULL;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &string, &string_len) == FAILURE) {
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z",&z)) {
 		RETURN_NULL();
 	}
 
-	if (string_len <= 0) {
+	if(!IS_OD_WRAPPER(z)) {
+		od_error(E_ERROR, "od_reserialize: argument must be ODWrapper!");
 		RETURN_NULL();
 	}
 
-	if (od_wrapper_reserialize((uint8_t *) string, string_len, &return_value TSRMLS_CC)) {
+	Z_TYPE_P(return_value) = IS_STRING;
+	Z_STRVAL_P(return_value) = NULL;
+	Z_STRLEN_P(return_value) = 0;
+
+	uint8_t *str = NULL;
+	uint32_t str_len = 0;
+
+	if (od_igbinary_serialize(&str, &str_len, z TSRMLS_CC)) {
+		od_error(E_ERROR, "od_reserialize: serialize failed");
+		RETURN_NULL();
+	}
+
+	if (str) {
+		Z_STRVAL_P(return_value) = (char*)str;
+		Z_STRLEN_P(return_value) = str_len;
+		return;
+	} else {
 		RETURN_NULL();
 	}
 }
