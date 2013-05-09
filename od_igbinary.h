@@ -151,7 +151,7 @@ typedef struct od_igbinary_unserialize_data_s {
 
 	bool compress_value_len;	/**< Whether compress the value len (into 1, 2 or 4 bytes) */
 
-	uint32_t root_id;
+	uint64_t root_id;
 } od_igbinary_unserialize_data;
 /* }}} */
 

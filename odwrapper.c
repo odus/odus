@@ -81,7 +81,7 @@ OD_WRAPPER_METHOD(__construct)
 	igsd.buffer_size = Z_STRLEN_P(root_string);
 	igsd.buffer_offset=0;
 
-	igsd.root_id = Z_STRVAL_P(root_string);
+	igsd.root_id = (uint64_t)Z_STRVAL_P(root_string);
 
 	//version check
 	uint32_t version = -1;
