@@ -1713,22 +1713,23 @@ uint8_t is_od_wrapper_obj_modified(od_wrapper_object* od_obj,uint8_t has_sleep, 
 						}
 
 						if (IS_OD_WRAPPER(val)) {
+							if (OD_IS_MODIFIED(*bkt)) {
+								// Assigned from another (odwrapper) object.
+								modified = 1;
+							} else {
+								od_wrapper_object* sub_od_obj = (od_wrapper_object*) zend_object_store_get_object(val);
 
-							od_wrapper_object* sub_od_obj = (od_wrapper_object*) zend_object_store_get_object(val);
-
-							if (hash_si_find(visited_od_wrappers, (char *) sub_od_obj, sizeof(od_wrapper_object *), found_p) == 1 /* not found */) {
-																
-								if (!is_od_wrapper_obj_modified(sub_od_obj, 0, NULL, visited_od_wrappers)) {
-
-									OD_RESET_MODIFIED(*bkt);
-
-								} else {
-									modified = 1;
-									OD_SET_MODIFIED(*bkt);
+								if (hash_si_find(visited_od_wrappers, (char *) sub_od_obj, sizeof(od_wrapper_object *), found_p) == 1 /* not found */) {
+									if (!is_od_wrapper_obj_modified(sub_od_obj, 0, NULL, visited_od_wrappers)) {
+										OD_RESET_MODIFIED(*bkt);
+									} else {
+										modified = 1;
+										OD_SET_MODIFIED(*bkt);
+									}
 								}
-							}
-							else {
-								debug("is_od_wrapper_obj_modified() already visited %s", bkt->key);
+								else {
+									debug("is_od_wrapper_obj_modified() already visited %s", bkt->key);
+								}
 							}
 						} else {
 							if (OD_IS_MODIFIED(*bkt) || val->type == IS_OBJECT) {
