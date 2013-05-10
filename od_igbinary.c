@@ -697,7 +697,7 @@ inline static int od_igbinary_serialize_chararray_ex(od_igbinary_serialize_data 
 	uint32_t t;
 	uint32_t *i = &t;
 
-	if (hash_si_find(&od_static_strings_hash, s, len, i) == 0) {
+	if (igsd->compact_strings && hash_si_find(&od_static_strings_hash, s, len, i) == 0) {
 		if (*i <= 0xff) {
 			od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_static_string_id8 TSRMLS_CC);
 			od_igbinary_serialize8(igsd, (uint8_t) *i TSRMLS_CC);
