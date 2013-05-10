@@ -44,8 +44,6 @@ static inline void init_od_wrapper(zval *object, od_igbinary_unserialize_data* p
 static inline zval* new_od_wrapper(zval *object, od_igbinary_unserialize_data* parent_igsd, uint8_t* data_str, uint32_t data_len,
 									char* class_name, int class_name_len, uint32_t member_num, uint32_t value_len, uint32_t offset);
 
-static int od_wrapper_migrate(zval* src, zval **dst TSRMLS_DC);
-
 static inline zend_llist* get_memory_collection_list();
 
 OD_WRAPPER_METHOD(__construct)
@@ -61,10 +59,7 @@ OD_WRAPPER_METHOD(__construct)
 		od_error(E_ERROR,"parameter for the constructor of ODWrapper must be valid string");
 	}
 
-	if (od_wrapper_migrate(data, &root_string TSRMLS_CC)) {
-		od_error(E_ERROR,"ODWrapper.__construct: migration failed");
-	}
-
+	root_string = data;
 	SET_OD_REFCOUNT(root_string);
 	zend_llist *collection_list = get_memory_collection_list();
 	if (collection_list != NULL)
@@ -80,12 +75,12 @@ OD_WRAPPER_METHOD(__construct)
 	igsd.buffer = Z_STRVAL_P(root_string);
 	igsd.buffer_size = Z_STRLEN_P(root_string);
 	igsd.buffer_offset=0;
+	igsd.original_buffer = igsd.buffer;
 
 	igsd.root_id = (uint64_t)Z_STRVAL_P(root_string);
 
-	//version check
-	uint32_t version = -1;
-	od_igbinary_unserialize_header(&igsd, &version TSRMLS_CC);
+	uint32_t header = -1;
+	od_igbinary_unserialize_header(&igsd, &header TSRMLS_CC);
 
 	if (igsd.compact_strings) {
 		// Will alloc memory for string table, don't forget to free it in destructor!
@@ -162,64 +157,6 @@ static void od_wrapper_modify_property(zval** variable_ptr, zval* value, zend_pr
 // Function Implementation
 
 // Exported Functions
-
-/* Reserialize, to refresh whole string table. */
-int od_wrapper_reserialize(const uint8_t *buf, uint32_t buf_len, zval **root_string TSRMLS_DC)
-{
-	zval *z = NULL;
-	uint8_t *str = NULL;
-	uint32_t str_len = 0;
-
-	MAKE_STD_ZVAL(z);
-	if (od_igbinary_unserialize(buf, buf_len, &z TSRMLS_CC)) {
-		od_error(E_ERROR, "od_wrapper_reserialize: unserialize failed");
-		return 1;
-	}
-
-	if (od_igbinary_serialize(&str, &str_len, z TSRMLS_CC)) {
-		od_error(E_ERROR, "od_wrapper_reserialize: serialize failed");
-		return 1;
-	}
-
-	zval_ptr_dtor(&z);
-
-	zval *z_str;
-	MAKE_STD_ZVAL(z_str);
-	Z_TYPE_P(z_str) = IS_STRING;
-	Z_STRVAL_P(z_str) = str;
-	Z_STRLEN_P(z_str) = str_len;
-
-	*root_string = z_str;
-
-	return 0;
-}
-
-static int od_wrapper_migrate(zval* src, zval **dst TSRMLS_DC)
-{
-	uint32_t current_version = OD_IGBINARY_FORMAT_VERSION;
-	uint32_t version = -1;
-	od_igbinary_unserialize_data igsd;
-
-	od_igbinary_unserialize_data_init(&igsd);
-
-	igsd.buffer = Z_STRVAL_P(src);
-	igsd.buffer_size = Z_STRLEN_P(src);
-	igsd.buffer_offset=0;
-
-	od_igbinary_unserialize_header(&igsd, &version TSRMLS_CC);
-
-	if (version < current_version) {
-		if (od_wrapper_reserialize(igsd.buffer, igsd.buffer_size, dst)) {
-			error(E_ERROR, "od_wrapper_migrate: migration failed");
-			return 1;
-		}
-	} else {
-		*dst = src;
-	}
-
-	od_igbinary_unserialize_data_deinit(&igsd);
-	return 0;
-}
 
 void release_memory(TSRMLS_D) {
 	zend_llist *collection_list = get_memory_collection_list();

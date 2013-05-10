@@ -242,14 +242,15 @@ int od_igbinary_serialize(uint8_t **ret, uint32_t *ret_len, zval *z TSRMLS_DC) {
 /* {{{ int od_igbinary_unserialize(const uint8_t *, uint32_t, zval **) */
 int od_igbinary_unserialize(const uint8_t *buf, uint32_t buf_len, zval **z TSRMLS_DC) {
 	od_igbinary_unserialize_data igsd;
-	uint32_t version = -1;
+	uint32_t header = -1;
 
 	od_igbinary_unserialize_data_init(&igsd TSRMLS_CC);
 
 	igsd.buffer = (uint8_t *) buf;
 	igsd.buffer_size = buf_len;
+	igsd.original_buffer = igsd.buffer;
 
-	if (od_igbinary_unserialize_header(&igsd, &version TSRMLS_CC)) {
+	if (od_igbinary_unserialize_header(&igsd, &header TSRMLS_CC)) {
 		od_igbinary_unserialize_data_deinit(&igsd TSRMLS_CC);
 		return 1;
 	}
@@ -298,7 +299,7 @@ PHP_FUNCTION(od_unserialize) {
 /** Inits od_igbinary_serialize_data. */
 inline int od_igbinary_serialize_data_init(od_igbinary_serialize_data *igsd, bool scalar TSRMLS_DC) {
 	int r = 0;
-	int format_version = (int)ODUS_G(format_version);
+	uint32_t format_version = (uint32_t)ODUS_G(format_version);
 
 	igsd->buffer = NULL;
 	igsd->buffer_size = 0;
@@ -316,10 +317,10 @@ inline int od_igbinary_serialize_data_init(od_igbinary_serialize_data *igsd, boo
 		hash_si_init(&igsd->objects, 16);
 	}
 
-	if (format_version == OD_IGBINARY_FORMAT_VERSION_02 & OD_IGBINARY_FORMAT_MASK) {
+	if (format_version == OD_IGBINARY_FORMAT_VERSION_02) {
 		igsd->compact_strings = true;
 		igsd->compress_value_len = true;
-	} else if (format_version == OD_IGBINARY_FORMAT_VERSION_01 & OD_IGBINARY_FORMAT_MASK) {
+	} else if (format_version == OD_IGBINARY_FORMAT_VERSION_01) {
 		igsd->compact_strings = false;
 		igsd->compress_value_len = false;
 	} else {
@@ -372,7 +373,8 @@ inline static int od_igbinary_serialize_resize(od_igbinary_serialize_data *igsd,
 /* {{{ od_igbinary_serialize_header */
 /** Serializes header. */
 inline int od_igbinary_serialize_header(od_igbinary_serialize_data *igsd TSRMLS_DC) {
-	od_igbinary_serialize32(igsd, OD_IGBINARY_FORMAT_VERSION TSRMLS_CC); /* version */
+	uint32_t format_version = (uint32_t)ODUS_G(format_version);
+	od_igbinary_serialize32(igsd, format_version | OD_IGBINARY_FORMAT_FLAG TSRMLS_CC); /* version */
 
 	if (igsd->compact_strings) {
 		// Jump over the string table info.
@@ -1473,7 +1475,7 @@ int od_igbinary_serialize_zval(od_igbinary_serialize_data *igsd, zval *z TSRMLS_
 /** Inits od_igbinary_unserialize_data_init. */
 inline int od_igbinary_unserialize_data_init(od_igbinary_unserialize_data *igsd TSRMLS_DC) {
 	//smart_str empty_str = { 0 };
-	int format_version = (int)ODUS_G(format_version);
+	uint32_t format_version = (uint32_t)ODUS_G(format_version);
 
 	igsd->buffer = NULL;
 	igsd->buffer_size = 0;
@@ -1483,10 +1485,10 @@ inline int od_igbinary_unserialize_data_init(od_igbinary_unserialize_data *igsd 
 	igsd->strings_count = 0;
 	//igsd->strings_capacity = 4;
 
-	if (format_version == OD_IGBINARY_FORMAT_VERSION_02 & OD_IGBINARY_FORMAT_MASK) {
+	if (format_version == OD_IGBINARY_FORMAT_VERSION_02) {
 		igsd->compact_strings = true;
 		igsd->compress_value_len = true;
-	} else if (format_version == OD_IGBINARY_FORMAT_VERSION_01 & OD_IGBINARY_FORMAT_MASK) {
+	} else if (format_version == OD_IGBINARY_FORMAT_VERSION_01) {
 		igsd->compact_strings = false;
 		igsd->compress_value_len = false;
 	} else {
@@ -1554,24 +1556,24 @@ inline void od_igbinary_unserialize_data_deinit(od_igbinary_unserialize_data *ig
 /* }}} */
 /* {{{ od_igbinary_unserialize_header */
 /** Unserialize header. Check for version. */
-inline int od_igbinary_unserialize_header(od_igbinary_unserialize_data *igsd, uint32_t *version TSRMLS_DC) {
+inline int od_igbinary_unserialize_header(od_igbinary_unserialize_data *igsd, uint32_t *header TSRMLS_DC) {
 	if (igsd->buffer_offset + 4 >= igsd->buffer_size) {
 		return 1;
 	}
 
-	*version = od_igbinary_unserialize32(igsd TSRMLS_CC);
+	*header = od_igbinary_unserialize32(igsd TSRMLS_CC);
 
 	/* Support older version 1 and the current format 2 */
-	if (*version == OD_IGBINARY_FORMAT_VERSION_01) {
+	if (*header == (OD_IGBINARY_FORMAT_FLAG | OD_IGBINARY_FORMAT_VERSION_01)) {
 		igsd->compact_strings = false;
 		igsd->compress_value_len = false;
 		return 0;
-	} else if (*version == OD_IGBINARY_FORMAT_VERSION_02) {
+	} else if (*header == (OD_IGBINARY_FORMAT_FLAG | OD_IGBINARY_FORMAT_VERSION_02)) {
 		igsd->compact_strings = true;
 		igsd->compress_value_len = true;
 		return 0;
 	} else {
-		od_error(E_ERROR, "od_igbinary_unserialize_header: unsupported version: %u, should be %u", (unsigned int) *version,(unsigned int) OD_IGBINARY_FORMAT_VERSION);
+		od_error(E_ERROR, "od_igbinary_unserialize_header: unsupported version: 0x%x, should be 0x%x", (unsigned int) *header,(unsigned int) OD_IGBINARY_FORMAT_HEADER);
 		return 1;
 	}
 }
@@ -1583,8 +1585,6 @@ inline int od_igbinary_unserialize_init_string_table(od_igbinary_unserialize_dat
 	if (igsd->buffer_offset + 8 >= igsd->buffer_size) {
 		return 1;
 	}
-
-	igsd->original_buffer = igsd->buffer;
 
 	igsd->string_table_start = od_igbinary_unserialize32(igsd TSRMLS_CC);
 

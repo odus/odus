@@ -171,7 +171,7 @@ PHP_MINFO_FUNCTION(odus)
 	php_info_print_table_start();
 	php_info_print_table_header(2, "odus support", "enabled");
 	php_info_print_table_row(2, "odus version", OD_VERSION);
-	php_info_print_table_row(2, "odus format version", TEXT(OD_IGBINARY_FORMAT_VERSION));
+	php_info_print_table_row(2, "odus format version", TEXT(ODUS_G(format_version)));
 
 #ifdef ODDEBUG
 	php_info_print_table_row(2, "odus type", "debug version");
@@ -441,6 +441,14 @@ void deal_with_modified_properties(od_wrapper_object* od_obj, od_igbinary_serial
 	od_igbinary_serialize_memcpy(igsd, OD_LOCAL_OFFSET_POS(*local_igsd), local_igsd->buffer_size - local_igsd->buffer_offset);
 }
 
+void normal_complete_serialize(od_igbinary_serialize_data* igsd, zval* obj) {
+	if(obj->type == IS_ARRAY) {
+		od_igbinary_serialize_array(igsd,obj,NULL,0,0,1);
+	} else {
+		od_igbinary_serialize_zval(igsd,obj);
+	}
+}
+
 void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, uint8_t is_root) {
 	if(obj==NULL) {
 		od_error(E_ERROR, "obj could not be NULL here");
@@ -456,12 +464,8 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ui
 	}
 
 	if(!od_obj) {
-		if(obj->type == IS_ARRAY) {
-			od_igbinary_serialize_array(igsd,obj,NULL,0,0,1);
-		} else {
-			// no od_obj means that is_root is false, so igsd has been initialized
-			od_igbinary_serialize_zval(igsd,obj);
-		}
+		// no od_obj means that is_root is false, so igsd has been initialized
+		normal_complete_serialize(igsd, obj);
 	}else{
 
 		uint8_t modified = 0;
@@ -473,13 +477,13 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ui
 		od_igbinary_unserialize_data local_igsd = od_obj->igsd;
 		local_igsd.buffer_offset = 0;
 
+		if(is_root) {
+			igsd->root_id = local_igsd.root_id;
+		}
+
 		if (igsd->root_id != 0 && igsd->root_id != local_igsd.root_id) {
 			// obj comes from a different root object, do full serializing to avoid string table corrupt.
-			if(obj->type == IS_ARRAY) {
-				od_igbinary_serialize_array(igsd,obj,NULL,0,0,1);
-			} else {
-				od_igbinary_serialize_zval(igsd,obj);
-			}
+			normal_complete_serialize(igsd, obj);
 			return;
 		}
 
@@ -488,12 +492,6 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ui
 		hash_si_deinit(&visited_od_wrappers);
 
 		debug("od_serialize: class '%s' is %s modified",OD_CLASS_NAME(od_obj),modified?"":"not");
-
-		if(is_root) {
-			//add header here
-			od_igbinary_serialize_header(igsd);
-			igsd->root_id = local_igsd.root_id;
-		}
 
 		do {
 			if(!modified){
@@ -598,6 +596,33 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ui
 	}
 }
 
+/* Return true if migration is needed, false otherwise. */
+bool check_need_migration(od_igbinary_serialize_data* igsd, zval* obj) {
+	uint32_t format_version = (uint32_t)ODUS_G(format_version);
+	uint32_t header = -1;
+
+	if(!IS_OD_WRAPPER(obj)) {
+		od_error(E_ERROR, "check_need_migration: obj must be ODWrapper!");
+		return true;
+	}
+
+	od_wrapper_object* od_obj = (od_wrapper_object*)zend_object_store_get_object(obj);
+	od_igbinary_unserialize_data local_igsd = od_obj->igsd;
+
+	uint8_t *buffer_backup = local_igsd.buffer;
+	local_igsd.buffer = local_igsd.original_buffer;
+	local_igsd.buffer_offset = 0;
+
+	od_igbinary_unserialize_header(&local_igsd, &header TSRMLS_CC);
+	local_igsd.buffer = buffer_backup;
+	local_igsd.buffer_offset = 0;
+
+	if ((header & OD_IGBINARY_FORMAT_VERSION_MASK) != format_version) {
+		return true;
+	}
+	return false;
+}
+
 /* Remove the following function when you have succesfully modified config.m4
    so that your module can be compiled into PHP, it exists only for testing
    purposes. */
@@ -624,18 +649,17 @@ PHP_FUNCTION(od_serialize)
 		RETURN_NULL();
 	}
 
-	if(IS_OD_WRAPPER(z)) {
+	if (od_igbinary_serialize_header(&igsd TSRMLS_CC) != 0) {
+		od_error(E_ERROR, "od_serialize: cannot write header");
+		od_igbinary_serialize_data_deinit(&igsd TSRMLS_CC);
+		RETURN_NULL();
+	}
+
+	if(IS_OD_WRAPPER(z) && !check_need_migration(&igsd, z)) {
 		debug("in od_serialize => file: %s function: %s line: %d",OD_FILE,OD_FUNCTION,OD_LINE);
 
 		normal_od_wrapper_serialize(&igsd,z,1);
-
 	} else {
-		if (od_igbinary_serialize_header(&igsd TSRMLS_CC) != 0) {
-			od_error(E_ERROR, "od_serialize: cannot write header");
-			od_igbinary_serialize_data_deinit(&igsd TSRMLS_CC);
-			RETURN_NULL();
-		}
-
 		if (od_igbinary_serialize_zval(&igsd, z TSRMLS_CC) != 0) {
 			od_igbinary_serialize_data_deinit(&igsd TSRMLS_CC);
 			RETURN_NULL();
@@ -693,8 +717,8 @@ PHP_FUNCTION(od_version)
 
 PHP_FUNCTION(od_format_version)
 {
-	char* version = TEXT(OD_IGBINARY_FORMAT_VERSION);
-	int len = sizeof(TEXT(OD_IGBINARY_FORMAT_VERSION)) -1;
+	char* version = TEXT(ODUS_G(format_version));
+	int len = sizeof(TEXT(ODUS_G(format_version))) -1;
 
 	Z_TYPE_P(return_value) = IS_STRING;
 	Z_STRVAL_P(return_value) = estrndup(version, len);
@@ -718,7 +742,7 @@ PHP_FUNCTION(od_format_match)
 
 	uint8_t val;
 
-	ulong version = OD_IGBINARY_FORMAT_VERSION;
+	ulong version = OD_IGBINARY_FORMAT_HEADER;
 
 	for(i=OD_IGBINARY_VERSION_BYTES-1;i>=0;i--) {
 		val = (version & 0xFF);

@@ -196,7 +196,7 @@ int od_igbinary_unserialize_zval(od_igbinary_unserialize_data *igsd, zval **z TS
 
 inline int od_igbinary_unserialize_data_init(od_igbinary_unserialize_data *igsd TSRMLS_DC);
 
-inline int od_igbinary_unserialize_header(od_igbinary_unserialize_data *igsd, uint32_t *version TSRMLS_DC);
+inline int od_igbinary_unserialize_header(od_igbinary_unserialize_data *igsd, uint32_t *header TSRMLS_DC);
 
 inline int od_igbinary_unserialize_data_clone(od_igbinary_unserialize_data *dest, od_igbinary_unserialize_data *src TSRMLS_DC);
 
