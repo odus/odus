@@ -221,7 +221,7 @@ static int od_wrapper_migrate(zval* src, zval **dst TSRMLS_DC)
 	return 0;
 }
 
-void collect_memory(TSRMLS_D) {
+void release_memory(TSRMLS_D) {
 	zend_llist *collection_list = get_memory_collection_list();
 	if (collection_list != NULL)
 	{
@@ -253,7 +253,7 @@ static void collect_root_string(zval **root_string) {
 
 zend_llist* get_memory_collection_list() {
 	if (memory_collection_list == NULL) {
-		if (ODUS_G(auto_collect_memory)) {
+		if (ODUS_G(force_release_memory)) {
 			memory_collection_list = emalloc(sizeof(zend_llist));
 			zend_llist_init(memory_collection_list, sizeof(zval*),  (llist_dtor_func_t) collect_root_string, 0);
 		}

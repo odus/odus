@@ -123,107 +123,7 @@ static char* od_static_strings[] = {
 		"xp",
 		"construction_3x3_4stage_tile",
 		"state_patrolling",
-		"targetObjectName",
-		"Storage",
-		"complete",
-		"planted",
-		"no_table",
-		"lastRequest",
-		"lastLevel",
-		"lastCount",
-		"materials",
-		"deco_sidewalk_greydark",
-		"mastery_crop",
-		"id",
-		"scid",
-		"plot_pumpkin_unwither",
-		"collected",
-		"checkedIn",
-		"purchasedCheckIn",
-		"feedSent",
-		"mastery_business",
-		"residence",
-		"reward",
-		"timeHelped",
-		"endTS",
-		"progress",
-		"prize",
-		"index",
-		"loot",
-		"handler",
-		"deco_courtlight",
-		"item_quantity",
-		"energy",
-		"MechanicMapResource",
-		"tool",
-		"resources",
-		"deco_bikepath",
-		"score",
-		"claim",
-		"rank",
-		"highest",
-		"purchased",
-		"extraData",
-		"activatedTime",
-		"expired",
-		"expireDate",
-		"tree_shade",
-		"workers",
-		"cops",
-		"attributes",
-		"members",
-		"timeLastRoll",
-		"banditQueue",
-		"banditsSpawned",
-		"numBanditsCaptured",
-		"typesBanditsCaptured",
-		"gateUnlockLevel",
-		"staffs",
-		"expand_12_12_special",
-		"grindable",
-		"deco_citysidewalk_district",
-		"Ship",
-		"material_lakefront_rivet",
-		"plot_strawberries",
-		"table",
-		"keyword",
-		"terra_tile_grass_land_6x6",
-		"material_lakefront_axle",
-		"permits",
-		"TRUE",
-		"material_lakefront_porticullus",
-		"material_lakefront_windlass",
-		"material_lakefront_deck",
-		"deco_flowerPatchBlue",
-		"material_lakefront_counterweight",
-		"deco_cityfence01",
-		"terra_tile_grass_land_6x6_reskin",
-		"deco_walkoffame",
-		"citizen",
-		"openTS",
-		"res_france_modern_bordeaux_house",
-		"terra_tile_grass_land_1x1",
-		"deco_greek_sidewalk",
-		"isNew",
-		"remodel",
-		"terra_tile_grass_land_1x1_reskin",
-		"withered",
-		"Neighborhood",
-		"plot_water",
-		"resourceType",
-		"constructionCount",
-		"orderResourceName",
-		"lotId",
-		"offsetX",
-		"offsetY",
-		"res_beachfrontapt_a",
-		"crew_bonus",
-		"customers",
-		"customersReq",
-		"contractName",
-		"premium_goods",
-		"none",
-		"toaster"
+		"targetObjectName"
 		/* Add more static strings here.
 		   Note: for compatible consideration, this table should be only appended. DON'T modify/delete any exsiting string. */
 	};
@@ -398,6 +298,7 @@ PHP_FUNCTION(od_unserialize) {
 /** Inits od_igbinary_serialize_data. */
 inline int od_igbinary_serialize_data_init(od_igbinary_serialize_data *igsd, bool scalar TSRMLS_DC) {
 	int r = 0;
+	int format_version = (int)ODUS_G(format_version);
 
 	igsd->buffer = NULL;
 	igsd->buffer_size = 0;
@@ -414,12 +315,22 @@ inline int od_igbinary_serialize_data_init(od_igbinary_serialize_data *igsd, boo
 		hash_si_init(&igsd->strings, 16);
 		hash_si_init(&igsd->objects, 16);
 	}
-	igsd->compact_strings = (bool)ODUS_G(compact_strings);
+
+	if (format_version == OD_IGBINARY_FORMAT_VERSION_02 & OD_IGBINARY_FORMAT_MASK) {
+		igsd->compact_strings = true;
+		igsd->compress_value_len = true;
+	} else if (format_version == OD_IGBINARY_FORMAT_VERSION_01 & OD_IGBINARY_FORMAT_MASK) {
+		igsd->compact_strings = false;
+		igsd->compress_value_len = false;
+	} else {
+		// Default, enable both.
+		debug("od_igbinary_serialize_data_init: wrong format_version configured.");
+		igsd->compact_strings = true;
+		igsd->compress_value_len = true;
+	}
 
 	igsd->strings_count = 0;
 	igsd->string_table_update = false;
-
-	igsd->compress_value_len = true;
 
 	igsd->root_id = 0;
 	return r;
@@ -1562,6 +1473,7 @@ int od_igbinary_serialize_zval(od_igbinary_serialize_data *igsd, zval *z TSRMLS_
 /** Inits od_igbinary_unserialize_data_init. */
 inline int od_igbinary_unserialize_data_init(od_igbinary_unserialize_data *igsd TSRMLS_DC) {
 	//smart_str empty_str = { 0 };
+	int format_version = (int)ODUS_G(format_version);
 
 	igsd->buffer = NULL;
 	igsd->buffer_size = 0;
@@ -1571,10 +1483,18 @@ inline int od_igbinary_unserialize_data_init(od_igbinary_unserialize_data *igsd 
 	igsd->strings_count = 0;
 	//igsd->strings_capacity = 4;
 
-	//igsd->compact_strings = true;
-	igsd->compact_strings = (bool)ODUS_G(compact_strings);
-
-	igsd->compress_value_len = true;
+	if (format_version == OD_IGBINARY_FORMAT_VERSION_02 & OD_IGBINARY_FORMAT_MASK) {
+		igsd->compact_strings = true;
+		igsd->compress_value_len = true;
+	} else if (format_version == OD_IGBINARY_FORMAT_VERSION_01 & OD_IGBINARY_FORMAT_MASK) {
+		igsd->compact_strings = false;
+		igsd->compress_value_len = false;
+	} else {
+		// Default, enable both.
+		debug("od_igbinary_serialize_data_init: wrong format_version configured.");
+		igsd->compact_strings = true;
+		igsd->compress_value_len = true;
+	}
 
 	igsd->root_id = 0;
 
@@ -1643,12 +1563,11 @@ inline int od_igbinary_unserialize_header(od_igbinary_unserialize_data *igsd, ui
 
 	/* Support older version 1 and the current format 2 */
 	if (*version == OD_IGBINARY_FORMAT_VERSION_01) {
-		// Overwrite the config value, we didn't have compact_strings for version 1.
 		igsd->compact_strings = false;
 		igsd->compress_value_len = false;
 		return 0;
 	} else if (*version == OD_IGBINARY_FORMAT_VERSION_02) {
-		//igsd->compact_strings = true;
+		igsd->compact_strings = true;
 		igsd->compress_value_len = true;
 		return 0;
 	} else {

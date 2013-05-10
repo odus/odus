@@ -24,7 +24,8 @@ static void php_odus_init_globals(zend_odus_globals* odus_globals TSRMLS_DC)
 	odus_globals->remove_default = 0;
 	odus_globals->od_throw_exceptions = 0;
 	odus_globals->od_reduce_fatals = 0;
-	odus_globals->compact_strings = 1;
+	odus_globals->format_version = 2;
+	odus_globals->force_release_memory = 1;
 }
 
 /* {{{ odus_functions[]
@@ -40,7 +41,7 @@ zend_function_entry odus_functions[] = {
 	PHP_FE(od_overwrite_function,	NULL)
 	PHP_FE(od_refresh_odwrapper,	NULL)
 	PHP_FE(od_getobjectkeys_without_key, NULL)
-	PHP_FE(od_collect_memory, NULL)
+	PHP_FE(od_release_memory, NULL)
 	PHP_FE(od_reserialize, NULL)
 	{NULL, NULL, NULL}	/* Must be the last line in odus_functions[] */
 };
@@ -100,8 +101,8 @@ PHP_INI_BEGIN()
     STD_PHP_INI_BOOLEAN("odus.remove_default",      "0",    PHP_INI_SYSTEM, OnUpdateBool,              remove_default,         zend_odus_globals, odus_globals)
     STD_PHP_INI_BOOLEAN("odus.throw_exceptions",      "0",    PHP_INI_SYSTEM, OnUpdateBool,              od_throw_exceptions,         zend_odus_globals, odus_globals)
     STD_PHP_INI_BOOLEAN("odus.reduce_fatals",      "0",    PHP_INI_SYSTEM, OnUpdateBool,              od_reduce_fatals,         zend_odus_globals, odus_globals)
-    STD_PHP_INI_BOOLEAN("odus.compact_strings",    "1",    PHP_INI_SYSTEM, OnUpdateBool,              compact_strings,          zend_odus_globals, odus_globals)
-    STD_PHP_INI_BOOLEAN("odus.auto_collect_memory",      "0",    PHP_INI_SYSTEM, OnUpdateBool,              auto_collect_memory,         zend_odus_globals, odus_globals)
+    STD_PHP_INI_BOOLEAN("odus.format_version",    "2",    PHP_INI_SYSTEM, OnUpdateLong,              format_version,          zend_odus_globals, odus_globals)
+    STD_PHP_INI_BOOLEAN("odus.force_release_memory",      "0",    PHP_INI_SYSTEM, OnUpdateBool,              force_release_memory,         zend_odus_globals, odus_globals)
 PHP_INI_END()
 
 zend_class_entry *odus_exception_ce;
@@ -880,9 +881,9 @@ PHP_FUNCTION(od_getobjectkeys_without_key)
 	FREE_HASHTABLE(htable);
 }
 
-PHP_FUNCTION(od_collect_memory)
+PHP_FUNCTION(od_release_memory)
 {
-	collect_memory();
+	release_memory();
 }
 
 PHP_FUNCTION(od_reserialize)

@@ -61,8 +61,8 @@ extension=odus.so
 odus.remove_default=0
 odus.reduce_fatals=0
 odus.throw_exceptions=0
-odus.compact_strings=1
-odus.auto_collect_memory=0
+odus.format_version=2
+odus.force_release_memory=0
 EOF
 
 %clean
