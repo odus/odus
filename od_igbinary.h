@@ -100,6 +100,10 @@ typedef enum od_igbinary_type_e {
 	/* 26 */ od_igbinary_type_static_string_id8,		/**< Static string id. */
 	/* 27 */ od_igbinary_type_static_string_id16,		/**< Static string id. */
 	/* 28 */ od_igbinary_type_static_string_id32,		/**< Static string id. */
+
+	/* 29 */ od_igbinary_type_object_static_string_id8,		/**< Static string id. */
+	/* 2a */ od_igbinary_type_object_static_string_id16,		/**< Static string id. */
+	/* 2b */ od_igbinary_type_object_static_string_id32,		/**< Static string id. */
 } od_igbinary_type;
 
 /** Serializer data.

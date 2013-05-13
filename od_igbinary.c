@@ -123,7 +123,284 @@ static char* od_static_strings[] = {
 		"xp",
 		"construction_3x3_4stage_tile",
 		"state_patrolling",
-		"targetObjectName"
+		"targetObjectName",
+		"id",
+		"className",
+		"state",
+		"itemName",
+		"direction",
+		"position",
+		"mechanicData",
+		"itemOwner",
+		"upgradeActionCount",
+		"upgradeTime",
+		"currentPopulation",
+		"crewReplacements",
+		"bonusCrewConversions",
+		"plantTime",
+		"buildTime",
+		"buildPowerups",
+		"harvestCounter",
+		"name",
+		"giftSenderId",
+		"lastModifiedGlobalEngineTime",
+		"m_value",
+		"isConnectedToRoad",
+		"isRoadVerifiable",
+		"heliportActive",
+		"visits",
+		"downgradeFromItemName",
+		"neverOpened",
+		"lastSavedMax",
+		"type",
+		"keys",
+		"virals",
+		"loadType",
+		"removeAllOnComplete",
+		"removeAllOnCompleteSet",
+		"keepOnComplete",
+		"removeOnCompleteItems",
+		"targetObjectId",
+		"unlocked",
+		"objectName",
+		"overrideItemName",
+		"overrideItemValidatorName",
+		"masteryLevel",
+		"validator",
+		"cashCost",
+		"overrideTables",
+		"dynamicTuning",
+		"disableSaleDiscount",
+		"gates",
+		"builds",
+		"placementTime",
+		"finishedBuilds",
+		"stage",
+		"buildStartTime",
+		"buildsQueued",
+		"currentState",
+		"targetBuildingName",
+		"targetBuildingClass",
+		"isAccelerated",
+		"numBoosts",
+		"refund",
+		"contractName",
+		"rewards",
+		"storage",
+		"supplyStorage",
+		"m_contractName",
+		"isMoveLocked",
+		"canBeOwned",
+		"mapOwner",
+		"userId",
+		"helpers",
+		"timeRequested",
+		"rewardType",
+		"rewardHandler",
+		"rewardAltType",
+		"trackFriends",
+		"lastStage",
+		"lastVisitDeduction",
+		"clearanceCustomers",
+		"featureData",
+		"maxObjectID",
+		"franchise_info",
+		"objects",
+		"objectsIndexByGroup",
+		"macroObjects",
+		"macroObjectIdCounter",
+		"sizeX",
+		"sizeY",
+		"gridSize",
+		"mapRects",
+		"lastExpansionTier",
+		"mostFrequentHelpers",
+		"visitorCenterMessage",
+		"tileSet",
+		"versionFromDB",
+		"currentThemes",
+		"currentThemeCollections",
+		"storageData",
+		"loadedEmpty",
+		"worldCreated",
+		"tempToIdMap",
+		"tempToIdMapTime",
+		"v",
+		"wildernessSim",
+		"citySim",
+		"populationSummary",
+		"appraisalSummary",
+		"world_id",
+		"ownerId",
+		"lastDirtyTimestamp",
+		"m_storage",
+		"segments",
+		"yield",
+		"capacity",
+		"potential",
+		"nextAppraisalRequirement",
+		"nextAppraisalRequirementBase",
+		"level",
+		"shamrockList",
+		"upgradeActionCount2",
+		"m_capacity",
+		"m_maxCapacity",
+		"viralType",
+		"originTime",
+		"timesPosted",
+		"hostRewardsGiven",
+		"recipients",
+		"ver",
+		"senderId",
+		"senderName",
+		"object",
+		"timestamp",
+		"Road",
+		"Sidewalk",
+		"Flag",
+		"Decoration",
+		"Residence",
+		"Municipal",
+		"Business",
+		"ConstructionSite",
+		"InventoryGate",
+		"Plot",
+		"SupplyStorage",
+		"Wilderness",
+		"FriendReward",
+		"Storage",
+		"Ship",
+		"MechanicMapResource",
+		"Neighborhood",
+		"EnvironmentTile",
+		"CrewGate",
+		"PartnerBuild",
+		"World",
+		"CitySim",
+		"PopulationSummary",
+		"AppraisalSummary",
+		"Mall",
+		"Skyscraper",
+		"HarvestableShip",
+		"BridgePart",
+		"Airplane",
+		"RainbowDecoration",
+		"MasteryGate",
+		"CompositeGate",
+		"GreenHouse",
+		"MunicipalCenter",
+		"BaseStorageUnit",
+		"Viral",
+		"PlayerNews",
+		"Landmark",
+		"Hotel",
+		"ZooEnclosure",
+		"Gate",
+		"PowerStation",
+		"Pier",
+		"TrainTracks",
+		"Truck",
+		"TimedBusiness",
+		"Storage",
+		"complete",
+		"planted",
+		"no_table",
+		"lastRequest",
+		"lastLevel",
+		"lastCount",
+		"materials",
+		"deco_sidewalk_greydark",
+		"mastery_crop",
+		"id",
+		"scid",
+		"plot_pumpkin_unwither",
+		"collected",
+		"checkedIn",
+		"purchasedCheckIn",
+		"feedSent",
+		"mastery_business",
+		"residence",
+		"reward",
+		"timeHelped",
+		"endTS",
+		"progress",
+		"prize",
+		"index",
+		"loot",
+		"handler",
+		"deco_courtlight",
+		"item_quantity",
+		"energy",
+		"MechanicMapResource",
+		"tool",
+		"resources",
+		"deco_bikepath",
+		"score",
+		"claim",
+		"rank",
+		"highest",
+		"purchased",
+		"extraData",
+		"activatedTime",
+		"expired",
+		"expireDate",
+		"tree_shade",
+		"workers",
+		"cops",
+		"attributes",
+		"members",
+		"timeLastRoll",
+		"banditQueue",
+		"banditsSpawned",
+		"numBanditsCaptured",
+		"typesBanditsCaptured",
+		"gateUnlockLevel",
+		"staffs",
+		"expand_12_12_special",
+		"grindable",
+		"deco_citysidewalk_district",
+		"Ship",
+		"material_lakefront_rivet",
+		"plot_strawberries",
+		"table",
+		"keyword",
+		"terra_tile_grass_land_6x6",
+		"material_lakefront_axle",
+		"permits",
+		"TRUE",
+		"material_lakefront_porticullus",
+		"material_lakefront_windlass",
+		"material_lakefront_deck",
+		"deco_flowerPatchBlue",
+		"material_lakefront_counterweight",
+		"deco_cityfence01",
+		"terra_tile_grass_land_6x6_reskin",
+		"deco_walkoffame",
+		"citizen",
+		"openTS",
+		"res_france_modern_bordeaux_house",
+		"terra_tile_grass_land_1x1",
+		"deco_greek_sidewalk",
+		"isNew",
+		"remodel",
+		"terra_tile_grass_land_1x1_reskin",
+		"withered",
+		"Neighborhood",
+		"plot_water",
+		"resourceType",
+		"constructionCount",
+		"orderResourceName",
+		"lotId",
+		"offsetX",
+		"offsetY",
+		"res_beachfrontapt_a",
+		"crew_bonus",
+		"customers",
+		"customersReq",
+		"contractName",
+		"premium_goods",
+		"none",
+		"toaster"
 		/* Add more static strings here.
 		   Note: for compatible consideration, this table should be only appended. DON'T modify/delete any exsiting string. */
 	};
@@ -640,6 +917,20 @@ inline int od_igbinary_serialize_string(od_igbinary_serialize_data *igsd, const 
 			return 1;
 		}
 	} else {	/* !igsd->scalar && igsd->compact_strings */
+		if (hash_si_find(&od_static_strings_hash, s, len, i) == 0) {
+			if (*i <= 0xff) {
+				od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_static_string_id8 TSRMLS_CC);
+				od_igbinary_serialize8(igsd, (uint8_t) *i TSRMLS_CC);
+			} else if (*i <= 0xffff) {
+				od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_static_string_id16 TSRMLS_CC);
+				od_igbinary_serialize16(igsd, (uint16_t) *i TSRMLS_CC);
+			} else {
+				od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_static_string_id32 TSRMLS_CC);
+				od_igbinary_serialize32(igsd, (uint32_t) *i TSRMLS_CC);
+			}
+			return 0;
+		}
+
 		if (hash_si_find(&igsd->strings, s, len, i) == 1) {
 			hash_si_insert(&igsd->strings, s, len, igsd->strings_count);
 			*i = igsd->strings_count;
@@ -1230,6 +1521,20 @@ inline static int od_igbinary_serialize_object_name(od_igbinary_serialize_data *
 	uint32_t *i = &t;
 
 	if (igsd->compact_strings) {
+		if (hash_si_find(&od_static_strings_hash, class_name, name_len, i) == 0) {
+			if (*i <= 0xff) {
+				od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_object_static_string_id8 TSRMLS_CC);
+				od_igbinary_serialize8(igsd, (uint8_t) *i TSRMLS_CC);
+			} else if (*i <= 0xffff) {
+				od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_object_static_string_id16 TSRMLS_CC);
+				od_igbinary_serialize16(igsd, (uint16_t) *i TSRMLS_CC);
+			} else {
+				od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_object_static_string_id32 TSRMLS_CC);
+				od_igbinary_serialize32(igsd, (uint32_t) *i TSRMLS_CC);
+			}
+			return 0;
+		}
+
 		if (hash_si_find(&igsd->strings, class_name, name_len, i) == 1) {
 			hash_si_insert(&igsd->strings, class_name, name_len, igsd->strings_count);
 			*i = igsd->strings_count;
@@ -1781,19 +2086,19 @@ inline int od_igbinary_unserialize_double(od_igbinary_unserialize_data *igsd, od
 inline int od_igbinary_unserialize_static_string(od_igbinary_unserialize_data *igsd, od_igbinary_type t, char **s, uint32_t *len TSRMLS_DC) {
 	size_t i;
 
-	if (t == od_igbinary_type_static_string_id8) {
+	if (t == od_igbinary_type_static_string_id8 || t == od_igbinary_type_object_static_string_id8) {
 		if (igsd->buffer_offset + 1 > igsd->buffer_size) {
 			zend_error(E_WARNING, "od_igbinary_unserialize_static_string: end-of-data");
 			return 1;
 		}
 		i = od_igbinary_unserialize8(igsd TSRMLS_CC);
-	} else if (t == od_igbinary_type_static_string_id16) {
+	} else if (t == od_igbinary_type_static_string_id16 || t == od_igbinary_type_object_static_string_id16) {
 		if (igsd->buffer_offset + 2 > igsd->buffer_size) {
 			zend_error(E_WARNING, "od_igbinary_unserialize_static_string: end-of-data");
 			return 1;
 		}
 		i = od_igbinary_unserialize16(igsd TSRMLS_CC);
-	} else if (t == od_igbinary_type_static_string_id32) {
+	} else if (t == od_igbinary_type_static_string_id32 || t == od_igbinary_type_object_static_string_id32) {
 		if (igsd->buffer_offset + 4 > igsd->buffer_size) {
 			zend_error(E_WARNING, "od_igbinary_unserialize_static_string: end-of-data");
 			return 1;
@@ -1920,6 +2225,8 @@ inline int od_igbinary_unserialize_chararray(od_igbinary_unserialize_data *igsd,
 inline int od_igbinary_unserialize_class_name(od_igbinary_unserialize_data *igsd, od_igbinary_type t, char **name, uint32_t *name_len TSRMLS_DC) {
 	if (t == od_igbinary_type_object8 || t == od_igbinary_type_object16 || t == od_igbinary_type_object32) {
 		return od_igbinary_unserialize_chararray(igsd, t, name, name_len TSRMLS_CC);
+	} else if (t == od_igbinary_type_object_static_string_id8 || t == od_igbinary_type_object_static_string_id16 || t == od_igbinary_type_object_static_string_id32) {
+		return od_igbinary_unserialize_static_string(igsd, t, name, name_len TSRMLS_CC);
 	} else if (t == od_igbinary_type_object_id8 || t == od_igbinary_type_object_id16 || t == od_igbinary_type_object_id32) {
 		return od_igbinary_unserialize_string(igsd, t, name, name_len TSRMLS_CC);
 	}
@@ -2470,6 +2777,9 @@ int od_igbinary_unserialize_zval(od_igbinary_unserialize_data *igsd, zval **z TS
 		case od_igbinary_type_object_id8:
 		case od_igbinary_type_object_id16:
 		case od_igbinary_type_object_id32:
+		case od_igbinary_type_object_static_string_id8:
+		case od_igbinary_type_object_static_string_id16:
+		case od_igbinary_type_object_static_string_id32:
 			if (od_igbinary_unserialize_object(igsd, t, z TSRMLS_CC)) {
 				return 1;
 			}

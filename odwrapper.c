@@ -1166,6 +1166,9 @@ int od_wrapper_skip_value(od_igbinary_unserialize_data *igsd)
 		case od_igbinary_type_object_id8:
 		case od_igbinary_type_object_id16:
 		case od_igbinary_type_object_id32:
+		case od_igbinary_type_object_static_string_id8:
+		case od_igbinary_type_object_static_string_id16:
+		case od_igbinary_type_object_static_string_id32:
 		{
 			char* class_name;
 			uint32_t class_name_len;
@@ -1277,6 +1280,9 @@ zval* od_wrapper_unserialize(od_igbinary_unserialize_data *igsd)
 		case od_igbinary_type_object_id8:
 		case od_igbinary_type_object_id16:
 		case od_igbinary_type_object_id32:
+		case od_igbinary_type_object_static_string_id8:
+		case od_igbinary_type_object_static_string_id16:
+		case od_igbinary_type_object_static_string_id32:
 		{
 			char* class_name;
 			uint32_t class_name_len;
