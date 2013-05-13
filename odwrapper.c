@@ -49,7 +49,6 @@ static inline zend_llist* get_memory_collection_list();
 OD_WRAPPER_METHOD(__construct)
 {
 	zval* data;
-	zval* root_string;
 
 	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z",&data)) {
 		return;
@@ -59,12 +58,11 @@ OD_WRAPPER_METHOD(__construct)
 		od_error(E_ERROR,"parameter for the constructor of ODWrapper must be valid string");
 	}
 
-	root_string = data;
-	SET_OD_REFCOUNT(root_string);
+	SET_OD_REFCOUNT(data);
 	zend_llist *collection_list = get_memory_collection_list();
 	if (collection_list != NULL)
 	{
-		zend_llist_add_element(collection_list, &root_string);
+		zend_llist_add_element(collection_list, &data);
 	}
 
 
@@ -72,12 +70,12 @@ OD_WRAPPER_METHOD(__construct)
 
 	od_igbinary_unserialize_data_init(&igsd);
 
-	igsd.buffer = Z_STRVAL_P(root_string);
-	igsd.buffer_size = Z_STRLEN_P(root_string);
+	igsd.buffer = Z_STRVAL_P(data);
+	igsd.buffer_size = Z_STRLEN_P(data);
 	igsd.buffer_offset=0;
 	igsd.original_buffer = igsd.buffer;
 
-	igsd.root_id = (uint64_t)Z_STRVAL_P(root_string);
+	igsd.root_id = (uint64_t)Z_STRVAL_P(data);
 
 	uint32_t header = -1;
 	od_igbinary_unserialize_header(&igsd, &header TSRMLS_CC);
