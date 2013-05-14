@@ -26,6 +26,7 @@ static void php_odus_init_globals(zend_odus_globals* odus_globals TSRMLS_DC)
 	odus_globals->od_reduce_fatals = 0;
 	odus_globals->format_version = 2;
 	odus_globals->force_release_memory = 1;
+	odus_globals->static_strings_file = OD_IGBINARY_DEFAULT_STATIC_STRINGS_FILE;
 }
 
 /* {{{ odus_functions[]
@@ -103,6 +104,7 @@ PHP_INI_BEGIN()
     STD_PHP_INI_BOOLEAN("odus.reduce_fatals",      "0",    PHP_INI_SYSTEM, OnUpdateBool,              od_reduce_fatals,         zend_odus_globals, odus_globals)
     STD_PHP_INI_BOOLEAN("odus.format_version",    "2",    PHP_INI_SYSTEM, OnUpdateLong,              format_version,          zend_odus_globals, odus_globals)
     STD_PHP_INI_BOOLEAN("odus.force_release_memory",      "0",    PHP_INI_SYSTEM, OnUpdateBool,              force_release_memory,         zend_odus_globals, odus_globals)
+    STD_PHP_INI_BOOLEAN("odus.static_strings_file",    OD_IGBINARY_DEFAULT_STATIC_STRINGS_FILE,    PHP_INI_SYSTEM, OnUpdateString,              static_strings_file,          zend_odus_globals, odus_globals)
 PHP_INI_END()
 
 zend_class_entry *odus_exception_ce;
@@ -172,6 +174,7 @@ PHP_MINFO_FUNCTION(odus)
 	php_info_print_table_header(2, "odus support", "enabled");
 	php_info_print_table_row(2, "odus version", OD_VERSION);
 	php_info_print_table_row(2, "odus format version", TEXT(ODUS_G(format_version)));
+	php_info_print_table_row(2, "odus static strings file", TEXT(ODUS_G(static_strings_file)));
 
 #ifdef ODDEBUG
 	php_info_print_table_row(2, "odus type", "debug version");

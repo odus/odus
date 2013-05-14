@@ -47,6 +47,10 @@ PHP_FUNCTION(od_reserialize);
 
 #define OD_IGBINARY_FORMAT_HEADER 			(OD_IGBINARY_FORMAT_FLAG | OD_IGBINARY_FORMAT_VERSION_02)     // current version
 
+#define OD_IGBINARY_STATIC_STRING_COMMENT_CHAR     '#'
+
+#define OD_IGBINARY_DEFAULT_STATIC_STRINGS_FILE    "/etc/odus.d/static_strings.ini"
+
 #define _TEXT(t) #t
 #define TEXT(t) _TEXT(t)
 
@@ -60,6 +64,7 @@ ZEND_BEGIN_MODULE_GLOBALS(odus)
 	zend_bool od_reduce_fatals;
 	zend_bool format_version;
 	zend_bool force_release_memory;
+   char * static_strings_file;      /* path of static strings file. */
 ZEND_END_MODULE_GLOBALS(odus)
 
 /* In every utility function you add that needs to use variables 
