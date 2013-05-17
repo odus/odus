@@ -93,12 +93,13 @@ inline static void od_igbinary_trim_string(char *str) {
 }
 
 inline int od_igbinary_init(TSRMLS_D) {
-	char buf[100];	/* Assume no string contains more than 100 chars */
+	char buf[1024];	/* Assume no string contains more than 1024 chars */
+	int buf_len = sizeof(buf) / sizeof(char);
 	int i;
 	const char *file = ODUS_G(static_strings_file);
 	FILE *fp = NULL;
 	int res = 0;
-	
+
 	do {
 		od_static_strings_count = 0;
 
@@ -115,7 +116,7 @@ inline int od_igbinary_init(TSRMLS_D) {
 			break;
 		}
 
-		while (fgets(buf, 100, fp) != NULL) {
+		while (fgets(buf, buf_len, fp) != NULL) {
 			od_igbinary_trim_string(buf);
 
 			if (buf[0] != OD_IGBINARY_STATIC_STRING_COMMENT_CHAR && strlen(buf) > 0 ) {
@@ -136,7 +137,7 @@ inline int od_igbinary_init(TSRMLS_D) {
 		// Re-read
 		fseek(fp, 0, SEEK_SET);
 		i = 0;
-		while (fgets(buf, 100, fp) != NULL) {
+		while (fgets(buf, buf_len, fp) != NULL) {
 			od_igbinary_trim_string(buf);
 
 			if (buf[0] != OD_IGBINARY_STATIC_STRING_COMMENT_CHAR && strlen(buf) > 0 ) {
