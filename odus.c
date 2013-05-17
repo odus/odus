@@ -173,8 +173,7 @@ PHP_MINFO_FUNCTION(odus)
 	php_info_print_table_start();
 	php_info_print_table_header(2, "odus support", "enabled");
 	php_info_print_table_row(2, "odus version", OD_VERSION);
-	php_info_print_table_row(2, "odus format version", TEXT(ODUS_G(format_version)));
-	php_info_print_table_row(2, "odus static strings file", TEXT(ODUS_G(static_strings_file)));
+	php_info_print_table_row(2, "odus static strings file", ODUS_G(static_strings_file));
 
 #ifdef ODDEBUG
 	php_info_print_table_row(2, "odus type", "debug version");

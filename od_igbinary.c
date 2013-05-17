@@ -125,7 +125,7 @@ inline int od_igbinary_init(TSRMLS_D) {
 
 	   	od_static_strings = (char**)pemalloc(sizeof(char*) * od_static_strings_count, 1);
 
-	   	memset(od_static_strings, NULL, sizeof(char*) * od_static_strings_count);
+	   	memset(od_static_strings, 0, sizeof(char*) * od_static_strings_count);
 
 	   	if (!od_static_strings) {
 	   		od_error(E_ERROR, "od_igbinary_init: Failed to alloc memory");
