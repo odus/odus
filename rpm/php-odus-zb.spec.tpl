@@ -63,7 +63,7 @@ odus.reduce_fatals=0
 odus.throw_exceptions=0
 odus.format_version=2
 odus.force_release_memory=0
-odus.static_strings_file=/etc/odus.d/static_strings.ini
+odus.static_strings_file=/var/www/releases/current/game/odus/static_strings.ini
 EOF
 
 %clean

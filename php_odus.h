@@ -49,7 +49,7 @@ PHP_FUNCTION(od_reserialize);
 
 #define OD_IGBINARY_STATIC_STRING_COMMENT_CHAR     '#'
 
-#define OD_IGBINARY_DEFAULT_STATIC_STRINGS_FILE    "/etc/odus.d/static_strings.ini"
+#define OD_IGBINARY_DEFAULT_STATIC_STRINGS_FILE    "/var/www/releases/current/game/odus/static_strings.ini"
 
 #define _TEXT(t) #t
 #define TEXT(t) _TEXT(t)
