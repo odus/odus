@@ -483,19 +483,19 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ui
 			igsd->root_id = local_igsd.root_id;
 		}
 
-		if (igsd->root_id != 0 && igsd->root_id != local_igsd.root_id) {
-			// obj comes from a different root object, do full serializing to avoid string table corrupt.
-			normal_complete_serialize(igsd, obj);
-			return;
-		}
-
-		hash_si_init(&visited_od_wrappers, 16);
-		modified = is_od_wrapper_obj_modified(od_obj, 0, &num_diff, &visited_od_wrappers);
-		hash_si_deinit(&visited_od_wrappers);
-
-		debug("od_serialize: class '%s' is %s modified",OD_CLASS_NAME(od_obj),modified?"":"not");
-
 		do {
+			if (igsd->root_id != 0 && igsd->root_id != local_igsd.root_id) {
+				// obj comes from a different root object, do full serializing to avoid string table corrupt.
+				normal_complete_serialize(igsd, obj);
+				break;
+			}
+
+			hash_si_init(&visited_od_wrappers, 16);
+			modified = is_od_wrapper_obj_modified(od_obj, 0, &num_diff, &visited_od_wrappers);
+			hash_si_deinit(&visited_od_wrappers);
+
+			debug("od_serialize: class '%s' is %s modified",OD_CLASS_NAME(od_obj),modified?"":"not");
+
 			if(!modified){
 				deal_with_unmodified_object(igsd, od_obj, is_root);
 				break;
