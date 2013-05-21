@@ -510,9 +510,39 @@ void od_wrapper_object_free_storage(void *object TSRMLS_DC)
 
 HashTable* od_wrapper_get_properties(zval *object TSRMLS_DC)
 {
+	uint32_t i;
+	ODBucket* bkt = NULL;
+
 	od_wrapper_object* od_obj = (od_wrapper_object*)zend_object_store_get_object(object TSRMLS_CC);
 
-	if(od_obj->zo.properties) return od_obj->zo.properties;
+	if(od_obj->zo.properties) {
+		/* Pick update from od_obj->od_properties. */
+		ulong p_hash;
+
+		if(od_obj->od_properties && od_obj->od_properties->buckets) {
+			for(i = 0; i < od_obj->od_properties->size; i++) {
+				bkt = od_obj->od_properties->buckets + i;
+
+				if (OD_IS_OCCUPIED(*bkt)) {
+					p_hash = zend_get_hash_value((char*)bkt->key, bkt->key_len + 1);
+
+					if(OD_IS_UNSET(*bkt)) {
+						zend_hash_del_key_or_index(od_obj->zo.properties, (char*)bkt->key, bkt->key_len + 1, p_hash, HASH_DEL_INDEX);
+					} else if (OD_IS_MODIFIED(*bkt)) {
+						((zval*)(bkt->data))->refcount ++;
+						zend_hash_quick_update(od_obj->zo.properties, (char*)bkt->key, bkt->key_len + 1, p_hash, (zval**)(&bkt->data), sizeof(zval*), NULL);
+					} else if (OD_IS_NEW(*bkt) && bkt->data != NULL) {
+						((zval*)(bkt->data))->refcount ++;
+						zend_hash_update(od_obj->zo.properties, (char*)bkt->key, bkt->key_len + 1, (zval**)(&bkt->data), sizeof(zval*), NULL);
+					} else {
+						debug("in od_wrapper_get_properties: unexpect flag: 0x%x", bkt->flag);
+					}
+				}
+			}
+		}
+
+		return od_obj->zo.properties;
+	}
 
 	OD_HASH_LAZY_INIT(od_obj->zo.properties);
 
@@ -521,10 +551,6 @@ HashTable* od_wrapper_get_properties(zval *object TSRMLS_DC)
 	if(!od_obj->od_properties) od_wrapper_lazy_init(object,od_obj);
 
 	get_all_members(od_obj);
-
-	ODBucket* bkt = NULL;
-
-	uint32_t i;
 
 	if(od_obj->od_properties && od_obj->od_properties->buckets) {
 		//add new properties here
