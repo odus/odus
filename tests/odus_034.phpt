@@ -15,27 +15,27 @@ class AClass
 
 $data=new ODWrapper(od_serialize(new AClass()));
 
-echo isset($data->name)?"yes":"no";
+echo isset($data->name1)?"yes":"no";
 
 echo "\n";
 
-unset($data->name);
+unset($data->name1);
 
-echo isset($data->a->name)?"yes":"no";
+echo isset($data->a->name1)?"yes":"no";
 
 echo "\n";
 
 $r= od_serialize($data);
 
 // Strings will stay after unset.
-echo strpos($r,'name')>0?"yes":"no";
+echo strpos($r,'name1')>0?"yes":"no";
 
 echo "\n";
 
 $r= od_reserialize($data);
 
 // Strings will stay after unset.
-echo strpos($r,'name')>0?"yes":"no";
+echo strpos($r,'name1')>0?"yes":"no";
 
 echo "\n";
 
