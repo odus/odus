@@ -9,7 +9,7 @@ odus.format_version=2
 
 class AClass
 {
-	public $name='value';
+	public $name1 = 'value';
 }
 
 
