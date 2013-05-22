@@ -34,23 +34,37 @@ PHP_FUNCTION(od_format_version);
 PHP_FUNCTION(od_format_match);
 PHP_FUNCTION(od_overwrite_function);
 PHP_FUNCTION(od_refresh_odwrapper);
-PHP_FUNCTION(od_getobjectkeys_without_classname);
+PHP_FUNCTION(od_getobjectkeys_without_key);
+PHP_FUNCTION(od_release_memory);
+PHP_FUNCTION(od_reserialize);
 
 /** Binary protocol version of igbinary. */
-#define OD_IGBINARY_FORMAT_VERSION 0x4F440001 //OD01
+#define OD_IGBINARY_FORMAT_FLAG				0x4F440000		// ASCII "OD"
+#define OD_IGBINARY_FORMAT_VERSION_MASK		0x0000FFFF
+#define OD_IGBINARY_FORMAT_VERSION_01		0x1
+#define OD_IGBINARY_FORMAT_VERSION_02		0x2
+
+
+#define OD_IGBINARY_FORMAT_HEADER 			(OD_IGBINARY_FORMAT_FLAG | OD_IGBINARY_FORMAT_VERSION_02)     // current version
+
+#define OD_IGBINARY_STATIC_STRING_COMMENT_CHAR     '#'
+
+#define OD_IGBINARY_DEFAULT_STATIC_STRINGS_FILE    "/var/www/releases/current/game/odus/static_strings.ini"
 
 #define _TEXT(t) #t
 #define TEXT(t) _TEXT(t)
 
 #define OD_IGBINARY_VERSION_BYTES  4
-#define OD_RESERVED_BUFFER_LEN 1024
 
-#define OD_VERSION "1.0.13"
+#define OD_VERSION "2.0.1"
 
 ZEND_BEGIN_MODULE_GLOBALS(odus)
 	zend_bool remove_default;
 	zend_bool od_throw_exceptions;
 	zend_bool od_reduce_fatals;
+	zend_bool format_version;
+	zend_bool force_release_memory;
+   char * static_strings_file;      /* path of static strings file. */
 ZEND_END_MODULE_GLOBALS(odus)
 
 /* In every utility function you add that needs to use variables 

@@ -24,6 +24,9 @@ static void php_odus_init_globals(zend_odus_globals* odus_globals TSRMLS_DC)
 	odus_globals->remove_default = 0;
 	odus_globals->od_throw_exceptions = 0;
 	odus_globals->od_reduce_fatals = 0;
+	odus_globals->format_version = 2;
+	odus_globals->force_release_memory = 1;
+	odus_globals->static_strings_file = OD_IGBINARY_DEFAULT_STATIC_STRINGS_FILE;
 }
 
 /* {{{ odus_functions[]
@@ -38,7 +41,9 @@ zend_function_entry odus_functions[] = {
 	PHP_FE(od_format_match,	NULL)
 	PHP_FE(od_overwrite_function,	NULL)
 	PHP_FE(od_refresh_odwrapper,	NULL)
-	PHP_FE(od_getobjectkeys_without_classname, NULL)
+	PHP_FE(od_getobjectkeys_without_key, NULL)
+	PHP_FE(od_release_memory, NULL)
+	PHP_FE(od_reserialize, NULL)
 	{NULL, NULL, NULL}	/* Must be the last line in odus_functions[] */
 };
 /* }}} */
@@ -97,6 +102,10 @@ PHP_INI_BEGIN()
     STD_PHP_INI_BOOLEAN("odus.remove_default",      "0",    PHP_INI_SYSTEM, OnUpdateBool,              remove_default,         zend_odus_globals, odus_globals)
     STD_PHP_INI_BOOLEAN("odus.throw_exceptions",      "0",    PHP_INI_SYSTEM, OnUpdateBool,              od_throw_exceptions,         zend_odus_globals, odus_globals)
     STD_PHP_INI_BOOLEAN("odus.reduce_fatals",      "0",    PHP_INI_SYSTEM, OnUpdateBool,              od_reduce_fatals,         zend_odus_globals, odus_globals)
+    /* Make odus.format_version as PHP_INI_USER to control it by experiment. Will move to PHP_INI_SYSTEM once it's robust. */
+    STD_PHP_INI_BOOLEAN("odus.format_version",    "2",    PHP_INI_USER, OnUpdateLong,              format_version,          zend_odus_globals, odus_globals)
+    STD_PHP_INI_BOOLEAN("odus.force_release_memory",      "0",    PHP_INI_SYSTEM, OnUpdateBool,              force_release_memory,         zend_odus_globals, odus_globals)
+    STD_PHP_INI_BOOLEAN("odus.static_strings_file",    OD_IGBINARY_DEFAULT_STATIC_STRINGS_FILE,    PHP_INI_SYSTEM, OnUpdateString,              static_strings_file,          zend_odus_globals, odus_globals)
 PHP_INI_END()
 
 zend_class_entry *odus_exception_ce;
@@ -118,6 +127,8 @@ PHP_MINIT_FUNCTION(odus)
 
 	od_wrapper_init(TSRMLS_C);
 
+	od_igbinary_init(TSRMLS_C);
+
 	return SUCCESS;
 }
 /* }}} */
@@ -131,6 +142,8 @@ PHP_MSHUTDOWN_FUNCTION(odus)
 	*/
 
 	od_wrapper_shutdown(TSRMLS_C);
+
+	od_igbinary_shutdown(TSRMLS_C);
 
 	return SUCCESS;
 }
@@ -161,7 +174,7 @@ PHP_MINFO_FUNCTION(odus)
 	php_info_print_table_start();
 	php_info_print_table_header(2, "odus support", "enabled");
 	php_info_print_table_row(2, "odus version", OD_VERSION);
-	php_info_print_table_row(2, "odus format version", TEXT(OD_IGBINARY_FORMAT_VERSION));
+	php_info_print_table_row(2, "odus static strings file", ODUS_G(static_strings_file));
 
 #ifdef ODDEBUG
 	php_info_print_table_row(2, "odus type", "debug version");
@@ -196,20 +209,20 @@ void normal_php_serialize(smart_str* buf, zval* obj)
 
 inline void deal_with_unmodified_object(od_igbinary_serialize_data* igsd, od_wrapper_object* od_obj, uint8_t is_root)
 {
-	if(is_root) {
-		igsd->scalar = 1;
-		igsd->objects.data = NULL;
+	// if(is_root) {
+	// 	igsd->scalar = 1;
+	// 	igsd->objects.data = NULL;
 
-		igsd->buffer_size = od_obj->igsd.buffer_size + OD_IGBINARY_VERSION_BYTES;
-		igsd->buffer_capacity = igsd->buffer_size + 1;
+	// 	igsd->buffer_size = od_obj->igsd.buffer_size + OD_IGBINARY_VERSION_BYTES;
+	// 	igsd->buffer_capacity = igsd->buffer_size + 1;
 
-		igsd->buffer = (uint8_t*)emalloc(igsd->buffer_capacity);
+	// 	igsd->buffer = (uint8_t*)emalloc(igsd->buffer_capacity);
 
-		memcpy(igsd->buffer, od_obj->igsd.buffer - OD_IGBINARY_VERSION_BYTES, igsd->buffer_size);
-		igsd->buffer[igsd->buffer_size] = 0;
-	} else {
+	// 	memcpy(igsd->buffer, od_obj->igsd.buffer - OD_IGBINARY_VERSION_BYTES, igsd->buffer_size);
+	// 	igsd->buffer[igsd->buffer_size] = 0;
+	// } else {
 		od_igbinary_serialize_memcpy(igsd,od_obj->igsd.buffer,od_obj->igsd.buffer_size);
-	}
+	//}
 }
 
 uint8_t check_sleep(zval* obj, od_wrapper_object* od_obj) {
@@ -301,18 +314,25 @@ void apply_sleep_array(od_wrapper_object* od_obj, HashTable* h) {
 	}
 }
 
-void deal_with_new_properties(od_wrapper_object* od_obj, od_igbinary_serialize_data* igsd, uint8_t has_sleep) {
+void deal_with_new_properties(od_wrapper_object* od_obj, od_igbinary_serialize_data* igsd, od_igbinary_unserialize_data* local_igsd, uint8_t has_sleep, int32_t *len_diff) {
 
 	uint32_t i;
 	ODHashTable* ht = od_obj->od_properties;
 	ODBucket* bkt = NULL;
+	int32_t total_len_diff = 0;
 
 	for(i=0;i<ht->size;i++) {
 		bkt=ht->buckets+i;
 
 		if(OD_IS_OCCUPIED(*bkt) && OD_IS_NEW(*bkt) && bkt->data!=NULL && (!has_sleep || OD_IS_SLEEP(*bkt)) && !(ODUS_G(remove_default) && !OD_IS_MODIFIED(*bkt) && OD_IS_DEFAULT(*bkt))) {
-
+			uint32_t start_pos = igsd->buffer_size;
 			debug("key %s is new for class %s", bkt->key?bkt->key:"null", OD_CLASS_NAME(od_obj));
+
+			// A new property requires updating string table always.
+			if(igsd->compact_strings && !igsd->string_table_update) {
+				igsd->string_table_update = true;
+				od_igbinary_clone_string_table(igsd, local_igsd TSRMLS_CC);
+			}
 
 			if(bkt->key_len == 0) {
 				od_igbinary_serialize_long(igsd, bkt->hash);
@@ -320,12 +340,15 @@ void deal_with_new_properties(od_wrapper_object* od_obj, od_igbinary_serialize_d
 				od_igbinary_serialize_string(igsd, bkt->key, bkt->key_len);
 			}
 
+			zval *z = (zval*)bkt->data;
 			normal_od_wrapper_serialize(igsd, (zval*)bkt->data,0);
+			total_len_diff += igsd->buffer_size - start_pos;
 		}
 	}
+	*len_diff = total_len_diff;
 }
 
-void deal_with_modified_properties(od_wrapper_object* od_obj, od_igbinary_serialize_data* igsd, od_igbinary_unserialize_data* local_igsd, uint8_t has_sleep) {
+void deal_with_modified_properties(od_wrapper_object* od_obj, od_igbinary_serialize_data* igsd, od_igbinary_unserialize_data* local_igsd, uint8_t has_sleep, int32_t *len_diff) {
 
 	uint32_t i;
 	ODHashTable* ht = od_obj->od_properties;
@@ -387,19 +410,31 @@ void deal_with_modified_properties(od_wrapper_object* od_obj, od_igbinary_serial
 			}
 
 			//now serialize these modified properties
-
+			int32_t total_len_diff = 0;
 			for(i=0;i<modified_num;i++) {
 				if(pos_info[i].data==NULL) {
 					od_igbinary_serialize_memcpy(igsd, OD_LOCAL_OFFSET_POS(*local_igsd), pos_info[i].key_start_offset - local_igsd->buffer_offset);
+					total_len_diff += 0 - (pos_info[i].val_end_offset - pos_info[i].key_start_offset);
 				} else {
 
 					od_igbinary_serialize_memcpy(igsd, OD_LOCAL_OFFSET_POS(*local_igsd), pos_info[i].val_start_offset - local_igsd->buffer_offset);
+
 					//serialize value
+					uint32_t value_start = igsd->buffer_size;
+
+					if(igsd->compact_strings && !igsd->string_table_update && (pos_info[i].data->type == IS_OBJECT || pos_info[i].data->type == IS_ARRAY) ) {
+						igsd->string_table_update = true;
+						od_igbinary_clone_string_table(igsd, local_igsd TSRMLS_CC);
+					}
 					normal_od_wrapper_serialize(igsd,pos_info[i].data,0);
+
+					int32_t value_len = igsd->buffer_size - value_start;
+					total_len_diff += value_len - (pos_info[i].val_end_offset - pos_info[i].val_start_offset);
 				}
 
 				local_igsd->buffer_offset = pos_info[i].val_end_offset;
 			}
+			*len_diff = total_len_diff;
 
 			efree(pos_info);
 			pos_info = NULL;
@@ -407,6 +442,14 @@ void deal_with_modified_properties(od_wrapper_object* od_obj, od_igbinary_serial
 	}
 
 	od_igbinary_serialize_memcpy(igsd, OD_LOCAL_OFFSET_POS(*local_igsd), local_igsd->buffer_size - local_igsd->buffer_offset);
+}
+
+void normal_complete_serialize(od_igbinary_serialize_data* igsd, zval* obj) {
+	if(obj->type == IS_ARRAY) {
+		od_igbinary_serialize_array(igsd,obj,NULL,0,0,1);
+	} else {
+		od_igbinary_serialize_zval(igsd,obj);
+	}
 }
 
 void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, uint8_t is_root) {
@@ -424,142 +467,163 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ui
 	}
 
 	if(!od_obj) {
-		if(obj->type == IS_ARRAY) {
-			od_igbinary_serialize_array(igsd,obj,NULL,0,0,1);
-		} else {
-			// no od_obj means that is_root is false, so igsd has been initialized
-			od_igbinary_serialize_zval(igsd,obj);
-		}
+		// no od_obj means that is_root is false, so igsd has been initialized
+		normal_complete_serialize(igsd, obj);
 	}else{
 
 		uint8_t modified = 0;
 		int num_diff = 0;
+		int32_t total_len_diff = 0;
 
 		struct hash_si visited_od_wrappers;
 
-		hash_si_init(&visited_od_wrappers, 16);
-		modified = is_od_wrapper_obj_modified(od_obj, 0, &num_diff, &visited_od_wrappers);
-		hash_si_deinit(&visited_od_wrappers);
+		od_igbinary_unserialize_data local_igsd = od_obj->igsd;
+		local_igsd.buffer_offset = 0;
 
-		debug("od_serialize: class '%s' is %s modified",OD_CLASS_NAME(od_obj),modified?"":"not");
+		if(is_root) {
+			igsd->root_id = local_igsd.root_id;
+		}
 
-		if(!modified){
-			deal_with_unmodified_object(igsd, od_obj, is_root);
-			return;
-		}else{
-
-			uint8_t has_sleep = check_sleep(obj, od_obj);
-
-			if(has_sleep) {
-				hash_si_init(&visited_od_wrappers, 16);
-				modified = is_od_wrapper_obj_modified(od_obj,1,&num_diff, &visited_od_wrappers);
-				hash_si_deinit(&visited_od_wrappers);
-
-				if(!modified) {
-					deal_with_unmodified_object(igsd, od_obj, is_root);
-					return;
-				}
+		do {
+			if (igsd->root_id != 0 && igsd->root_id != local_igsd.root_id) {
+				// obj comes from a different root object, do full serializing to avoid string table corrupt.
+				normal_complete_serialize(igsd, obj);
+				break;
 			}
 
-			//TODO
-			//will reduce default properties here
-			//There are multiple choices for removing default properties:
-			// normal
-			// medium
-			// agressive
-			//There is time and storage tradeoff
-			// removing more default properties we can save more storage but need more cpu time
+			hash_si_init(&visited_od_wrappers, 16);
+			modified = is_od_wrapper_obj_modified(od_obj, 0, &num_diff, &visited_od_wrappers);
+			hash_si_deinit(&visited_od_wrappers);
 
-			// removing default properties is optional
+			debug("od_serialize: class '%s' is %s modified",OD_CLASS_NAME(od_obj),modified?"":"not");
 
+			if(!modified){
+				deal_with_unmodified_object(igsd, od_obj, is_root);
+				break;
+			}else{
 
-			if(is_root) {
-				//We need do necessary initialization
-				assert(igsd->buffer==NULL);
-				assert(igsd->buffer_size==0);
-				assert(igsd->buffer_capacity==0);
+				uint8_t has_sleep = check_sleep(obj, od_obj);
 
-				igsd->buffer = NULL;
-				igsd->buffer_size = 0;
-				igsd->buffer_capacity = od_obj->igsd.buffer_size + min(OD_RESERVED_BUFFER_LEN,od_obj->igsd.buffer_size>>1);
+				if(has_sleep) {
+					hash_si_init(&visited_od_wrappers, 16);
+					modified = is_od_wrapper_obj_modified(od_obj,1,&num_diff, &visited_od_wrappers);
+					hash_si_deinit(&visited_od_wrappers);
 
-				igsd->buffer = (uint8_t *) emalloc(igsd->buffer_capacity);
-				if (igsd->buffer == NULL) {
-					od_error(E_ERROR,"failed memory allocation");
+					if(!modified) {
+						deal_with_unmodified_object(igsd, od_obj, is_root);
+						break;
+					}
 				}
 
-				igsd->scalar = 0;
-				hash_si_init(&igsd->objects, 1);
+				//TODO
+				//will reduce default properties here
+				//There are multiple choices for removing default properties:
+				// normal
+				// medium
+				// agressive
+				//There is time and storage tradeoff
+				// removing more default properties we can save more storage but need more cpu time
 
-				//add header here
-				od_igbinary_serialize_header(igsd);
+				// removing default properties is optional
 
-			}
+				debug("deal with changed part of object %s, num_diff: %d",OD_CLASS_NAME(od_obj), num_diff);
 
-			debug("deal with changed part of object %s, num_diff: %d",OD_CLASS_NAME(od_obj), num_diff);
+				char* class_name;
+				uint32_t class_name_len;
 
-			od_igbinary_unserialize_data local_igsd = od_obj->igsd;
-			local_igsd.buffer_offset = 0;
+				od_igbinary_unserialize_class_name(&local_igsd, od_igbinary_get_type(&local_igsd), &class_name, &class_name_len);
 
-			char* class_name;
-			uint32_t class_name_len;
+				//XXX
+				//this position will not changed
+				uint32_t local_array_info_offset = local_igsd.buffer_offset;
 
-			od_igbinary_unserialize_chararray(&local_igsd, od_igbinary_get_type(&local_igsd), &class_name, &class_name_len);
+				int member_num = od_igbinary_get_member_num(&local_igsd,od_igbinary_get_type(&local_igsd));
 
-			//XXX
-			//this position will not changed
-			uint32_t local_array_info_offset = local_igsd.buffer_offset;
+				//XXX
+				//this position may be changed latter
+				uint32_t local_len_info_offset = local_igsd.buffer_offset;
 
-			int member_num = od_igbinary_get_member_num(&local_igsd,od_igbinary_get_type(&local_igsd));
+				od_igbinary_skip_value_len(&local_igsd);
 
-			//XXX
-			//this position may be changed latter
-			uint32_t local_len_info_offset = local_igsd.buffer_offset;
+				if(num_diff !=0) {
 
-			od_igbinary_skip_value_len(&local_igsd);
+					debug("diff num: %d",num_diff);
 
-			if(num_diff !=0) {
+					int new_member_num = member_num + num_diff;
 
-				debug("diff num: %d",num_diff);
+					od_igbinary_serialize_memcpy(igsd,local_igsd.buffer, local_array_info_offset);
 
-				int new_member_num = member_num + num_diff;
+					debug("new meber num is %d", new_member_num);
 
-				od_igbinary_serialize_memcpy(igsd,local_igsd.buffer, local_array_info_offset);
+					assert(new_member_num>=0);
 
-				debug("new meber num is %d", new_member_num);
-
-				assert(new_member_num>=0);
-
-				if (new_member_num <= 0xff) {
-					od_igbinary_serialize8(igsd, od_igbinary_type_array8 TSRMLS_CC);
-					od_igbinary_serialize8(igsd, new_member_num TSRMLS_CC);
-				} else if (new_member_num <= 0xffff) {
-					od_igbinary_serialize8(igsd, od_igbinary_type_array16 TSRMLS_CC);
-					od_igbinary_serialize16(igsd, new_member_num TSRMLS_CC);
+					if (new_member_num <= 0xff) {
+						od_igbinary_serialize8(igsd, od_igbinary_type_array8 TSRMLS_CC);
+						od_igbinary_serialize8(igsd, new_member_num TSRMLS_CC);
+					} else if (new_member_num <= 0xffff) {
+						od_igbinary_serialize8(igsd, od_igbinary_type_array16 TSRMLS_CC);
+						od_igbinary_serialize16(igsd, new_member_num TSRMLS_CC);
+					} else {
+						od_igbinary_serialize8(igsd, od_igbinary_type_array32 TSRMLS_CC);
+						od_igbinary_serialize32(igsd, new_member_num TSRMLS_CC);
+					}
 				} else {
-					od_igbinary_serialize8(igsd, od_igbinary_type_array32 TSRMLS_CC);
-					od_igbinary_serialize32(igsd, new_member_num TSRMLS_CC);
+					od_igbinary_serialize_memcpy(igsd,local_igsd.buffer, local_len_info_offset);
 				}
-			} else {
-				od_igbinary_serialize_memcpy(igsd,local_igsd.buffer, local_len_info_offset);
+
+				uint32_t g_len_info_pos = igsd->buffer_size;
+
+				od_igbinary_serialize_skip_n(igsd,OD_IGBINARY_VALUE_LEN_SIZE);
+
+				debug("deal with modified properties for class %s",OD_CLASS_NAME(od_obj));
+
+				int32_t len_diff = 0;
+				total_len_diff = 0;
+
+				deal_with_modified_properties(od_obj, igsd, &local_igsd, has_sleep, &len_diff);
+				total_len_diff += len_diff;
+
+				debug("deal with new properties for class %s",OD_CLASS_NAME(od_obj));
+
+				deal_with_new_properties(od_obj, igsd, &local_igsd, has_sleep, &len_diff);
+				total_len_diff += len_diff;
+
+				//modify value len
+				od_igbinary_serialize_value_len(igsd, igsd->buffer_size - g_len_info_pos - OD_IGBINARY_VALUE_LEN_SIZE, g_len_info_pos);	
 			}
+		} while (0);
 
-			uint32_t g_len_info_pos = igsd->buffer_size;
-
-			od_igbinary_serialize_skip_n(igsd,OD_IGBINARY_VALUE_LEN_SIZE);
-
-			debug("deal with modified properties for class %s",OD_CLASS_NAME(od_obj));
-
-			deal_with_modified_properties(od_obj, igsd, &local_igsd, has_sleep);
-
-			debug("deal with new properties for class %s",OD_CLASS_NAME(od_obj));
-
-			deal_with_new_properties(od_obj, igsd, has_sleep);
-
-			//modify value len
-			od_igbinary_serialize_value_len(igsd, igsd->buffer_size - g_len_info_pos - OD_IGBINARY_VALUE_LEN_SIZE,g_len_info_pos);
+		if (is_root && igsd->compact_strings) {
+			od_igbinary_serialize_update_string_table(igsd, &local_igsd, total_len_diff TSRMLS_CC);
 		}
 	}
+}
+
+/* Return true if migration is needed, false otherwise. */
+bool check_need_migration(od_igbinary_serialize_data* igsd, zval* obj) {
+	uint32_t format_version = (uint32_t)ODUS_G(format_version);
+	uint32_t header = -1;
+
+	if(!IS_OD_WRAPPER(obj)) {
+		od_error(E_ERROR, "check_need_migration: obj must be ODWrapper!");
+		return true;
+	}
+
+	od_wrapper_object* od_obj = (od_wrapper_object*)zend_object_store_get_object(obj);
+	od_igbinary_unserialize_data local_igsd = od_obj->igsd;
+
+	uint8_t *buffer_backup = local_igsd.buffer;
+	local_igsd.buffer = local_igsd.original_buffer;
+	local_igsd.buffer_offset = 0;
+
+	od_igbinary_unserialize_header(&local_igsd, &header TSRMLS_CC);
+	local_igsd.buffer = buffer_backup;
+	local_igsd.buffer_offset = 0;
+
+	if ((header & OD_IGBINARY_FORMAT_VERSION_MASK) != format_version) {
+		return true;
+	}
+	return false;
 }
 
 /* Remove the following function when you have succesfully modified config.m4
@@ -583,28 +647,32 @@ PHP_FUNCTION(od_serialize)
 
 	od_igbinary_serialize_data igsd = {0};
 
-	if(IS_OD_WRAPPER(z)) {
+	if (od_igbinary_serialize_data_init(&igsd, Z_TYPE_P(z) != IS_OBJECT && Z_TYPE_P(z) != IS_ARRAY TSRMLS_CC)) {
+		od_error(E_ERROR, "od_serialize: cannot init igsd");
+		RETURN_NULL();
+	}
 
+	if (od_igbinary_serialize_header(&igsd TSRMLS_CC) != 0) {
+		od_error(E_ERROR, "od_serialize: cannot write header");
+		od_igbinary_serialize_data_deinit(&igsd TSRMLS_CC);
+		RETURN_NULL();
+	}
+
+	if(IS_OD_WRAPPER(z) && !check_need_migration(&igsd, z)) {
 		debug("in od_serialize => file: %s function: %s line: %d",OD_FILE,OD_FUNCTION,OD_LINE);
 
 		normal_od_wrapper_serialize(&igsd,z,1);
-
 	} else {
-
-		if (od_igbinary_serialize_data_init(&igsd, Z_TYPE_P(z) != IS_OBJECT && Z_TYPE_P(z) != IS_ARRAY TSRMLS_CC)) {
-			od_error(E_ERROR, "od_igbinary_serialize: cannot init igsd");
-			RETURN_NULL();
-		}
-
-		if (od_igbinary_serialize_header(&igsd TSRMLS_CC) != 0) {
-			od_error(E_ERROR, "od_igbinary_serialize: cannot write header");
-			od_igbinary_serialize_data_deinit(&igsd TSRMLS_CC);
-			RETURN_NULL();
-		}
-
 		if (od_igbinary_serialize_zval(&igsd, z TSRMLS_CC) != 0) {
 			od_igbinary_serialize_data_deinit(&igsd TSRMLS_CC);
 			RETURN_NULL();
+		}
+
+		if (igsd.compact_strings) {
+			if (od_igbinary_serialize_string_table(&igsd TSRMLS_CC) != 0) {
+				od_igbinary_serialize_data_deinit(&igsd TSRMLS_CC);
+				RETURN_NULL();
+			}
 		}
 	}
 
@@ -652,8 +720,8 @@ PHP_FUNCTION(od_version)
 
 PHP_FUNCTION(od_format_version)
 {
-	char* version = TEXT(OD_IGBINARY_FORMAT_VERSION);
-	int len = sizeof(TEXT(OD_IGBINARY_FORMAT_VERSION)) -1;
+	char* version = TEXT(ODUS_G(format_version));
+	int len = sizeof(TEXT(ODUS_G(format_version))) -1;
 
 	Z_TYPE_P(return_value) = IS_STRING;
 	Z_STRVAL_P(return_value) = estrndup(version, len);
@@ -677,7 +745,7 @@ PHP_FUNCTION(od_format_match)
 
 	uint8_t val;
 
-	ulong version = OD_IGBINARY_FORMAT_VERSION;
+	ulong version = OD_IGBINARY_FORMAT_HEADER;
 
 	for(i=OD_IGBINARY_VERSION_BYTES-1;i>=0;i--) {
 		val = (version & 0xFF);
@@ -738,10 +806,13 @@ PHP_FUNCTION(od_refresh_odwrapper)
 	RETURN_BOOL(1);
 }
 
-PHP_FUNCTION(od_getobjectkeys_without_classname)
+PHP_FUNCTION(od_getobjectkeys_without_key)
 {
 	zval* obj = NULL;
-	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z", &obj)) {
+	char *key = NULL;
+	int key_len;
+
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z|s", &obj, &key, &key_len)) {
 		RETURN_BOOL(0);
 	}
 
@@ -805,8 +876,11 @@ PHP_FUNCTION(od_getobjectkeys_without_classname)
 		p = p->pListNext;
 	}
 
-	char className[] = "className";
-	ulong hash_classname = zend_get_hash_value(className, sizeof(className));
+	ulong hash_key = 0;
+	if (key)
+	{
+		hash_key = zend_get_hash_value(key, key_len+1);
+	}
 	ulong p_hash;
 	i = 0;
 	int type;
@@ -817,9 +891,9 @@ PHP_FUNCTION(od_getobjectkeys_without_classname)
 		(type = zend_hash_get_current_key_ex(htable, &name, &len, &index, 0, &pos)) != HASH_KEY_NON_EXISTANT;
 		zend_hash_move_forward_ex(htable, &pos))
     {
-    	if (pos->h == hash_classname && len == sizeof(className))
+    	if (key && pos->h == hash_key && len == key_len+1)
 		{
-			if (memcmp(name, className, len) == 0) {
+			if (memcmp(name, key, len) == 0) {
 				continue;
 			}
 		}
@@ -832,4 +906,43 @@ PHP_FUNCTION(od_getobjectkeys_without_classname)
 
 	zend_hash_destroy(htable);
 	FREE_HASHTABLE(htable);
+}
+
+PHP_FUNCTION(od_release_memory)
+{
+	release_memory();
+}
+
+PHP_FUNCTION(od_reserialize)
+{
+	zval* z = NULL;
+
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z",&z)) {
+		RETURN_NULL();
+	}
+
+	if(!IS_OD_WRAPPER(z)) {
+		od_error(E_ERROR, "od_reserialize: argument must be ODWrapper!");
+		RETURN_NULL();
+	}
+
+	Z_TYPE_P(return_value) = IS_STRING;
+	Z_STRVAL_P(return_value) = NULL;
+	Z_STRLEN_P(return_value) = 0;
+
+	uint8_t *str = NULL;
+	uint32_t str_len = 0;
+
+	if (od_igbinary_serialize(&str, &str_len, z TSRMLS_CC)) {
+		od_error(E_ERROR, "od_reserialize: serialize failed");
+		RETURN_NULL();
+	}
+
+	if (str) {
+		Z_STRVAL_P(return_value) = (char*)str;
+		Z_STRLEN_P(return_value) = str_len;
+		return;
+	} else {
+		RETURN_NULL();
+	}
 }

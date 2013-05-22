@@ -17,9 +17,17 @@
 
 ZEND_EXTERN_MODULE_GLOBALS(odus);
 
+/* Static Variables. */
+
+/* Static strings. */
+static struct hash_si od_static_strings_hash;	// For serialize
+static int od_static_strings_count = 0;
+
+static char** od_static_strings;
+
 static char* EMPTY_STRING="";
 
-extern void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, uint8_t is_root, uint8_t recursive_check);
+extern void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, uint8_t is_root);
 
 /* {{{ Serializing functions prototypes */
 
@@ -33,6 +41,10 @@ inline static int od_igbinary_serialize_double(od_igbinary_serialize_data *igsd,
 
 inline static int od_igbinary_serialize_chararray(od_igbinary_serialize_data *igsd, const char *s, uint32_t len TSRMLS_DC);
 
+inline static int od_igbinary_serialize_chararray_ex(od_igbinary_serialize_data *igsd, const char *s, uint32_t len TSRMLS_DC);
+
+inline static int od_igbinary_unserialize_string_from_table(od_igbinary_unserialize_data *igsd, char **s, uint32_t *len, uint32_t pos TSRMLS_DC);
+
 inline static int od_igbinary_serialize_array_ref(od_igbinary_serialize_data *igsd, zval *z, bool object TSRMLS_DC);
 inline static int od_igbinary_serialize_array_sleep(od_igbinary_serialize_data *igsd, zval *z, HashTable *ht, zend_class_entry *ce, bool incomplete_class TSRMLS_DC);
 inline static int od_igbinary_serialize_object_name(od_igbinary_serialize_data *igsd, const char *name, uint32_t name_len TSRMLS_DC);
@@ -40,11 +52,7 @@ inline static int od_igbinary_serialize_object(od_igbinary_serialize_data *igsd,
 
 /* }}} */
 /* {{{ Unserializing functions prototypes */
-inline static int od_igbinary_unserialize_data_init(od_igbinary_unserialize_data *igsd TSRMLS_DC);
-inline static void od_igbinary_unserialize_data_deinit(od_igbinary_unserialize_data *igsd TSRMLS_DC);
-
-//odus disable string compact
-//inline static int od_igbinary_unserialize_string(od_igbinary_unserialize_data *igsd, od_igbinary_type t, char **s, uint32_t *len TSRMLS_DC);
+inline static int od_igbinary_unserialize_string(od_igbinary_unserialize_data *igsd, od_igbinary_type t, char **s, uint32_t *len TSRMLS_DC);
 
 inline static int od_igbinary_unserialize_array(od_igbinary_unserialize_data *igsd, od_igbinary_type t, zval **z, int object TSRMLS_DC);
 inline static int od_igbinary_unserialize_object(od_igbinary_unserialize_data *igsd, od_igbinary_type t, zval **z TSRMLS_DC);
@@ -56,6 +64,130 @@ inline static int od_igbinary_unserialize_object_ser(od_igbinary_unserialize_dat
 /* }}} */
 
 inline static void adjust_len_info(od_igbinary_serialize_data *igsd, uint32_t n, uint32_t new_n, uint old_len_bytes, uint new_len_bytes, uint32_t old_len_pos);
+
+inline static void od_igbinary_trim_string(char *str) {
+	uint32_t i;
+	uint32_t str_len = strlen(str);
+
+	for (i = str_len - 1; i >= 0; i--) {
+		if (str[i] == '\n' || str[i] == ' ') {
+			str[i] = '\0';
+			str_len--;
+		} else {
+			break;
+		}
+	}
+
+	int space = 0;
+	for (i = 0; i < str_len; i++) {
+		if (str[i] == ' ') {
+			space++;
+		} else {
+			break;
+		}
+	}
+
+	if (space > 0) {
+		memmove(str, str + space, str_len + 1 - space);
+	}
+}
+
+inline int od_igbinary_init(TSRMLS_D) {
+	char buf[1024];	/* Assume no string contains more than 1024 chars */
+	int buf_len = sizeof(buf) / sizeof(char);
+	int i;
+	const char *file = ODUS_G(static_strings_file);
+	FILE *fp = NULL;
+	int res = 0;
+
+	do {
+		od_static_strings_count = 0;
+
+		if (!file || !file[0]) {
+			debug("od_igbinary_init: static strings file is empty, use default one.");
+			file = OD_IGBINARY_DEFAULT_STATIC_STRINGS_FILE;
+		}
+
+		fp = fopen(file, "r");
+
+		if (!fp) {
+			debug("od_igbinary_init: failed to open static string file, ignore.");
+			res = -1;
+			break;
+		}
+
+		while (fgets(buf, buf_len, fp) != NULL) {
+			od_igbinary_trim_string(buf);
+
+			if (buf[0] != OD_IGBINARY_STATIC_STRING_COMMENT_CHAR && strlen(buf) > 0 ) {
+				od_static_strings_count += 1;
+			}
+		}
+
+	   	od_static_strings = (char**)pemalloc(sizeof(char*) * od_static_strings_count, 1);
+
+	   	memset(od_static_strings, 0, sizeof(char*) * od_static_strings_count);
+
+	   	if (!od_static_strings) {
+	   		od_error(E_ERROR, "od_igbinary_init: Failed to alloc memory");
+	   		res = -1;
+	   		break;
+	   	}
+
+		// Re-read
+		fseek(fp, 0, SEEK_SET);
+		i = 0;
+		while (fgets(buf, buf_len, fp) != NULL) {
+			od_igbinary_trim_string(buf);
+
+			if (buf[0] != OD_IGBINARY_STATIC_STRING_COMMENT_CHAR && strlen(buf) > 0 ) {
+				od_static_strings[i] = pestrdup(buf, 1);
+
+				if (!od_static_strings[i]) {
+					od_error(E_ERROR, "od_igbinary_init: Failed to alloc memory for a string");
+					res = -1;
+					break;
+				}
+				i++;
+			}
+		}
+	} while (0);
+	
+
+	if (fp) {
+		fclose (fp);
+	}
+
+	hash_si_init(&od_static_strings_hash, 16);
+	if (res == 0) {
+		int len;
+		for (i = 0; i < od_static_strings_count; i++) {
+			len = strlen(od_static_strings[i]);
+
+			hash_si_insert(&od_static_strings_hash, od_static_strings[i], len, i);
+		}
+	}
+
+	return 0;
+}
+
+inline int od_igbinary_shutdown(TSRMLS_D) {
+	int i;
+
+	hash_si_deinit(&od_static_strings_hash);
+
+	if (od_static_strings) {
+		for (i = 0; i < od_static_strings_count; i++) {
+			if (od_static_strings[i]) {
+				pefree(od_static_strings[i], 1);
+			}
+		}
+		pefree(od_static_strings, 1);
+	}
+
+
+	return 0;
+}
 
 /* {{{ int od_igbinary_serialize(uint8_t**, uint32_t*, zval*) */
 int od_igbinary_serialize(uint8_t **ret, uint32_t *ret_len, zval *z TSRMLS_DC) {
@@ -74,6 +206,13 @@ int od_igbinary_serialize(uint8_t **ret, uint32_t *ret_len, zval *z TSRMLS_DC) {
 	if (od_igbinary_serialize_zval(&igsd, z TSRMLS_CC) != 0) {
 		od_igbinary_serialize_data_deinit(&igsd TSRMLS_CC);
 		return 1;
+	}
+
+	if (igsd.compact_strings) {
+		if (od_igbinary_serialize_string_table(&igsd TSRMLS_CC) != 0) {
+			od_igbinary_serialize_data_deinit(&igsd TSRMLS_CC);
+			return 1;
+		}
 	}
 
 	*ret_len = igsd.buffer_size;
@@ -97,15 +236,24 @@ int od_igbinary_serialize(uint8_t **ret, uint32_t *ret_len, zval *z TSRMLS_DC) {
 /* {{{ int od_igbinary_unserialize(const uint8_t *, uint32_t, zval **) */
 int od_igbinary_unserialize(const uint8_t *buf, uint32_t buf_len, zval **z TSRMLS_DC) {
 	od_igbinary_unserialize_data igsd;
+	uint32_t header = -1;
 
 	od_igbinary_unserialize_data_init(&igsd TSRMLS_CC);
 
 	igsd.buffer = (uint8_t *) buf;
 	igsd.buffer_size = buf_len;
+	igsd.original_buffer = igsd.buffer;
 
-	if (od_igbinary_unserialize_header(&igsd TSRMLS_CC)) {
+	if (od_igbinary_unserialize_header(&igsd, &header TSRMLS_CC)) {
 		od_igbinary_unserialize_data_deinit(&igsd TSRMLS_CC);
 		return 1;
+	}
+
+	if (igsd.compact_strings) {
+		if (od_igbinary_unserialize_init_string_table(&igsd TSRMLS_CC)) {
+			od_igbinary_unserialize_data_deinit(&igsd TSRMLS_CC);
+			return 1;
+		}
 	}
 
 	if (od_igbinary_unserialize_zval(&igsd, z TSRMLS_CC)) {
@@ -145,10 +293,12 @@ PHP_FUNCTION(od_unserialize) {
 /** Inits od_igbinary_serialize_data. */
 inline int od_igbinary_serialize_data_init(od_igbinary_serialize_data *igsd, bool scalar TSRMLS_DC) {
 	int r = 0;
+	uint32_t format_version = (uint32_t)ODUS_G(format_version);
 
 	igsd->buffer = NULL;
 	igsd->buffer_size = 0;
-	igsd->buffer_capacity = 32;
+	//igsd->buffer_capacity = 32;
+	igsd->buffer_capacity = OD_RESERVED_BUFFER_LEN;
 
 	igsd->buffer = (uint8_t *) emalloc(igsd->buffer_capacity);
 	if (igsd->buffer == NULL) {
@@ -157,8 +307,27 @@ inline int od_igbinary_serialize_data_init(od_igbinary_serialize_data *igsd, boo
 
 	igsd->scalar = scalar;
 	if (!igsd->scalar) {
+		hash_si_init(&igsd->strings, 16);
 		hash_si_init(&igsd->objects, 16);
 	}
+
+	if (format_version == OD_IGBINARY_FORMAT_VERSION_02) {
+		igsd->compact_strings = true;
+		igsd->compress_value_len = true;
+	} else if (format_version == OD_IGBINARY_FORMAT_VERSION_01) {
+		igsd->compact_strings = false;
+		igsd->compress_value_len = false;
+	} else {
+		// Default, enable both.
+		debug("od_igbinary_serialize_data_init: wrong format_version configured.");
+		igsd->compact_strings = true;
+		igsd->compress_value_len = true;
+	}
+
+	igsd->strings_count = 0;
+	igsd->string_table_update = false;
+
+	igsd->root_id = 0;
 	return r;
 }
 /* }}} */
@@ -170,16 +339,12 @@ inline void od_igbinary_serialize_data_deinit(od_igbinary_serialize_data *igsd T
 	}
 
 	if (!igsd->scalar) {
+		hash_si_deinit(&igsd->strings);
 		hash_si_deinit(&igsd->objects);
 	}
 }
 /* }}} */
-/* {{{ od_igbinary_serialize_header */
-/** Serializes header. */
-inline int od_igbinary_serialize_header(od_igbinary_serialize_data *igsd TSRMLS_DC) {
-	return od_igbinary_serialize32(igsd, OD_IGBINARY_FORMAT_VERSION TSRMLS_CC); /* version */
-}
-/* }}} */
+
 /* {{{ od_igbinary_serialize_resize */
 /** Expandes od_igbinary_serialize_data. */
 inline static int od_igbinary_serialize_resize(od_igbinary_serialize_data *igsd, uint32_t size TSRMLS_DC) {
@@ -194,6 +359,24 @@ inline static int od_igbinary_serialize_resize(od_igbinary_serialize_data *igsd,
 	igsd->buffer = (uint8_t *) erealloc(igsd->buffer, igsd->buffer_capacity);
 	if (igsd->buffer == NULL)
 		return 1;
+
+	return 0;
+}
+/* }}} */
+
+/* {{{ od_igbinary_serialize_header */
+/** Serializes header. */
+inline int od_igbinary_serialize_header(od_igbinary_serialize_data *igsd TSRMLS_DC) {
+	uint32_t format_version = (uint32_t)ODUS_G(format_version);
+	od_igbinary_serialize32(igsd, format_version | OD_IGBINARY_FORMAT_FLAG TSRMLS_CC); /* version */
+
+	if (igsd->compact_strings) {
+		// Jump over the string table info.
+		if(od_igbinary_serialize_resize(igsd, OD_IGBINARY_STRING_TABLE_INFO_LEN)) {
+			return 1;
+		}
+		igsd->buffer_size += OD_IGBINARY_STRING_TABLE_INFO_LEN;
+	}
 
 	return 0;
 }
@@ -233,8 +416,16 @@ inline int od_igbinary_serialize8(od_igbinary_serialize_data *igsd, uint8_t i TS
 	igsd->buffer[igsd->buffer_size++] = i;
 	return 0;
 }
-
 /* }}} */
+
+/* {{{ od_igbinary_serialize8_at */
+/** Serialize 8bit value at specified position.. */
+inline int od_igbinary_serialize8_at(od_igbinary_serialize_data *igsd, uint8_t i, uint32_t pos TSRMLS_DC) {
+	igsd->buffer[pos++] = i;
+	return 0;
+}
+/* }}} */
+
 /* {{{ od_igbinary_serialize16 */
 /** Serialize 16bit value. */
 inline int od_igbinary_serialize16(od_igbinary_serialize_data *igsd, uint16_t i TSRMLS_DC) {
@@ -248,6 +439,17 @@ inline int od_igbinary_serialize16(od_igbinary_serialize_data *igsd, uint16_t i 
 	return 0;
 }
 /* }}} */
+
+/* {{{ od_igbinary_serialize16_at */
+/** Serialize 32bit value at specified position. */
+inline int od_igbinary_serialize16_at(od_igbinary_serialize_data *igsd, uint16_t i, uint32_t pos TSRMLS_DC) {
+	igsd->buffer[pos++] = (uint8_t) (i >> 8 & 0xff);
+	igsd->buffer[pos++] = (uint8_t) (i & 0xff);
+
+	return 0;
+}
+/* }}} */
+
 /* {{{ od_igbinary_serialize32 */
 /** Serialize 32bit value. */
 inline int od_igbinary_serialize32(od_igbinary_serialize_data *igsd, uint32_t i TSRMLS_DC) {
@@ -274,18 +476,49 @@ inline int od_igbinary_serialize_skip_n(od_igbinary_serialize_data *igsd, int n 
 	return 0;
 }
 
-/* {{{ od_igbinary_serialize_value_len */
-/** Serialize 32bit value. */
-inline int od_igbinary_serialize_value_len(od_igbinary_serialize_data *igsd, uint32_t len, uint32_t pos TSRMLS_DC) {
-
-	uint32_t i = (uint32_t) len;
-
+/* {{{ od_igbinary_serialize32_at */
+/** Serialize 32bit value at specified position. */
+inline int od_igbinary_serialize32_at(od_igbinary_serialize_data *igsd, uint32_t i, uint32_t pos TSRMLS_DC) {
 	igsd->buffer[pos++] = (uint8_t) (i >> 24 & 0xff);
 	igsd->buffer[pos++] = (uint8_t) (i >> 16 & 0xff);
 	igsd->buffer[pos++] = (uint8_t) (i >> 8 & 0xff);
 	igsd->buffer[pos++] = (uint8_t) (i & 0xff);
 
 	return 0;
+}
+/* }}} */
+
+/* {{{ od_igbinary_serialize_value_len */
+/** Serialize 32bit value. */
+inline int od_igbinary_serialize_value_len(od_igbinary_serialize_data *igsd, uint32_t len, uint32_t pos TSRMLS_DC) {
+	if (igsd->compress_value_len) {
+		/** Compress size, use the first two bits to indicate length:
+		 * 01: Len will occupy 1 byte;
+		 * 10: Len will occupy 2 bytes in total;
+		 * 11: Not used for now;
+		 * 00: Len will occupy 4 bytes in total. This will be compatible with the old format (always be 4 bytes.) */
+		uint32_t encode_len = 0;
+		if (len <= 0x3f) {
+			encode_len = len | 0x40;
+			od_igbinary_serialize8_at(igsd, (uint8_t) encode_len, pos TSRMLS_CC);
+			memmove(igsd->buffer + pos + 1, igsd->buffer + pos + OD_IGBINARY_VALUE_LEN_SIZE, igsd->buffer_size - OD_IGBINARY_VALUE_LEN_SIZE - pos);
+			igsd->buffer_size -= 3;
+		} else if (len <= 0x3fff) {
+			encode_len = len | 0x8000;
+			od_igbinary_serialize16_at(igsd, (uint16_t) encode_len, pos TSRMLS_CC);
+			memmove(igsd->buffer + pos + 2, igsd->buffer + pos + OD_IGBINARY_VALUE_LEN_SIZE, igsd->buffer_size - OD_IGBINARY_VALUE_LEN_SIZE - pos);
+			igsd->buffer_size -= 2;
+		} else if (len <= 0x3fffffff) {
+			encode_len = len;
+			od_igbinary_serialize32_at(igsd, (uint32_t) encode_len, pos TSRMLS_CC);
+		} else {
+			od_error(E_ERROR, "od_igbinary_serialize_value_len: len is too large");
+			return 1;
+		}
+		return 0;
+	} else {
+		return od_igbinary_serialize32_at(igsd, len, pos TSRMLS_CC);
+	}
 }
 /* }}} */
 
@@ -389,41 +622,49 @@ inline static int od_igbinary_serialize_double(od_igbinary_serialize_data *igsd,
  */
 inline int od_igbinary_serialize_string(od_igbinary_serialize_data *igsd, const char *s, uint32_t len TSRMLS_DC) {
 	uint32_t t;
+	uint32_t *i = &t;
 
 	if (len == 0) {
 		od_igbinary_serialize8(igsd, od_igbinary_type_string_empty TSRMLS_CC);
 		return 0;
 	}
 
-	//odus disable string compact
-	//if (igsd->scalar || !igsd->compact_strings || hash_si_find(&igsd->strings, s, len, i) == 1) {
-
-		/*
-		 * odus doesn't suport string compact
-		if (!igsd->scalar && igsd->compact_strings) {
-			hash_si_insert(&igsd->strings, s, len, igsd->string_count);
-		}
-		*/
-
-		//igsd->string_count += 1;
-
+	if (igsd->scalar || !igsd->compact_strings) {
 		if (od_igbinary_serialize_chararray(igsd, s, len TSRMLS_CC) != 0) {
 			return 1;
 		}
-	//}
-	//odus disable string compact
-	//else {
-	//	if (*i <= 0xff) {
-	//		od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_string_id8 TSRMLS_CC);
-	//		od_igbinary_serialize8(igsd, (uint8_t) *i TSRMLS_CC);
-	//	} else if (*i <= 0xffff) {
-	//		od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_string_id16 TSRMLS_CC);
-	//		od_igbinary_serialize16(igsd, (uint16_t) *i TSRMLS_CC);
-	//	} else {
-	//		od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_string_id32 TSRMLS_CC);
-	//		od_igbinary_serialize32(igsd, (uint32_t) *i TSRMLS_CC);
-	//	}
-	//}
+	} else {	/* !igsd->scalar && igsd->compact_strings */
+		if (hash_si_find(&od_static_strings_hash, s, len, i) == 0) {
+			if (*i <= 0xff) {
+				od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_static_string_id8 TSRMLS_CC);
+				od_igbinary_serialize8(igsd, (uint8_t) *i TSRMLS_CC);
+			} else if (*i <= 0xffff) {
+				od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_static_string_id16 TSRMLS_CC);
+				od_igbinary_serialize16(igsd, (uint16_t) *i TSRMLS_CC);
+			} else {
+				od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_static_string_id32 TSRMLS_CC);
+				od_igbinary_serialize32(igsd, (uint32_t) *i TSRMLS_CC);
+			}
+			return 0;
+		}
+
+		if (hash_si_find(&igsd->strings, s, len, i) == 1) {
+			hash_si_insert(&igsd->strings, s, len, igsd->strings_count);
+			*i = igsd->strings_count;
+			igsd->strings_count += 1;
+		}
+
+		if (*i <= 0xff) {
+			od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_string_id8 TSRMLS_CC);
+			od_igbinary_serialize8(igsd, (uint8_t) *i TSRMLS_CC);
+		} else if (*i <= 0xffff) {
+			od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_string_id16 TSRMLS_CC);
+			od_igbinary_serialize16(igsd, (uint16_t) *i TSRMLS_CC);
+		} else {
+			od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_string_id32 TSRMLS_CC);
+			od_igbinary_serialize32(igsd, (uint32_t) *i TSRMLS_CC);
+		}
+	}
 
 	return 0;
 }
@@ -431,6 +672,7 @@ inline int od_igbinary_serialize_string(od_igbinary_serialize_data *igsd, const 
 /* {{{ od_igbinary_serialize_chararray */
 /** Serializes string data. */
 inline static int od_igbinary_serialize_chararray(od_igbinary_serialize_data *igsd, const char *s, uint32_t len TSRMLS_DC) {
+
 	if (len <= 0xff) {
 		od_igbinary_serialize8(igsd, od_igbinary_type_string8 TSRMLS_CC);
 		od_igbinary_serialize8(igsd, len TSRMLS_CC);
@@ -449,13 +691,53 @@ inline static int od_igbinary_serialize_chararray(od_igbinary_serialize_data *ig
 	memcpy(igsd->buffer+igsd->buffer_size, s, len);
 	igsd->buffer_size += len;
 
-	igsd->buffer[igsd->buffer_size++]='\0';
 	//XXX
 	// odus need '\0' at the end of string for lazy reading
+	igsd->buffer[igsd->buffer_size++]='\0';
 
 	return 0;
 }
 /* }}} */
+
+/* {{{ od_igbinary_serialize_chararray_ex */
+/** Serializes string data, enhanced to work with static string table. */
+inline static int od_igbinary_serialize_chararray_ex(od_igbinary_serialize_data *igsd, const char *s, uint32_t len TSRMLS_DC) {
+	uint32_t t;
+	uint32_t *i = &t;
+
+	if (igsd->compact_strings && hash_si_find(&od_static_strings_hash, s, len, i) == 0) {
+		if (*i <= 0xff) {
+			od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_static_string_id8 TSRMLS_CC);
+			od_igbinary_serialize8(igsd, (uint8_t) *i TSRMLS_CC);
+		} else if (*i <= 0xffff) {
+			od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_static_string_id16 TSRMLS_CC);
+			od_igbinary_serialize16(igsd, (uint16_t) *i TSRMLS_CC);
+		} else {
+			od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_static_string_id32 TSRMLS_CC);
+			od_igbinary_serialize32(igsd, (uint32_t) *i TSRMLS_CC);
+		}
+		return 0;
+	} else {
+		return od_igbinary_serialize_chararray(igsd, s, len TSRMLS_CC);
+	}	
+}
+/* }}} */
+
+/* {{{ od_igbinary_serialize_array_key */
+/** Serializes a key of array. */
+inline static int od_igbinary_serialize_array_key(od_igbinary_serialize_data *igsd, bool object, int key_type, ulong key_index, char *key, uint key_len TSRMLS_DC) {
+	if (key_type==HASH_KEY_IS_LONG) {
+		return od_igbinary_serialize_long(igsd, key_index TSRMLS_CC);
+	} else if (object) {
+		// We enable string compact only for object properties name.
+		return od_igbinary_serialize_string(igsd, key, key_len TSRMLS_CC);
+	} else {
+		return od_igbinary_serialize_chararray_ex(igsd, key, key_len TSRMLS_CC);
+	}
+}
+/* }}} */
+
+
 /* {{{ igbinay_serialize_array */
 /** Serializes array or objects inner properties. */
 inline int od_igbinary_serialize_array(od_igbinary_serialize_data *igsd, zval *z, zend_class_entry* ce, bool object, bool incomplete_class, bool in_od_serialize TSRMLS_DC) {
@@ -511,8 +793,8 @@ inline int od_igbinary_serialize_array(od_igbinary_serialize_data *igsd, zval *z
 	}
 
 	if (n == 0) {
-		od_igbinary_serialize_value_len(igsd,0,igsd->buffer_size);
 		igsd->buffer_size += OD_IGBINARY_VALUE_LEN_SIZE;
+		od_igbinary_serialize_value_len(igsd,0,igsd->buffer_size - OD_IGBINARY_VALUE_LEN_SIZE);
 		return 0;
 	}
 
@@ -543,25 +825,22 @@ inline int od_igbinary_serialize_array(od_igbinary_serialize_data *igsd, zval *z
 		/* we should still add element even if it's not OK,
 		 * since we already wrote the length of the array before */
 		if (zend_hash_get_current_data_ex(h, (void *) &d, &pos) != SUCCESS || d == NULL) {
-
-			r += (key_type==HASH_KEY_IS_LONG)?od_igbinary_serialize_long(igsd, key_index TSRMLS_CC):od_igbinary_serialize_string(igsd, key, key_len-1 TSRMLS_CC);
+			r += od_igbinary_serialize_array_key(igsd, object, key_type, key_index, key, key_len - 1 TSRMLS_CC);
 
 			if (od_igbinary_serialize_null(igsd TSRMLS_CC)) {
 				return 1;
 			}
 		} else {
 			if(in_od_serialize) {
+				r += od_igbinary_serialize_array_key(igsd, object, key_type, key_index, key, key_len - 1 TSRMLS_CC);
 
-				r += (key_type==HASH_KEY_IS_LONG)?od_igbinary_serialize_long(igsd, key_index TSRMLS_CC):od_igbinary_serialize_string(igsd, key, key_len-1 TSRMLS_CC);
-
-				normal_od_wrapper_serialize(igsd, *d, 0, 1);
+				normal_od_wrapper_serialize(igsd, *d, 0);
 			} else {
 
 				if(object && ODUS_G(remove_default) && !incomplete_class && ce && pos && is_default(pos->arKey,pos->nKeyLength,pos->h,*d,&ce->default_properties)) {
 					num_defaults ++;
 				} else {
-
-					r += (key_type==HASH_KEY_IS_LONG)?od_igbinary_serialize_long(igsd, key_index TSRMLS_CC):od_igbinary_serialize_string(igsd, key, key_len-1 TSRMLS_CC);
+					r += od_igbinary_serialize_array_key(igsd, object, key_type, key_index, key, key_len - 1 TSRMLS_CC);
 
 					if (od_igbinary_serialize_zval(igsd, *d TSRMLS_CC)) {
 						return 1;
@@ -588,6 +867,97 @@ inline int od_igbinary_serialize_array(od_igbinary_serialize_data *igsd, zval *z
 	return r;
 }
 /* }}} */
+
+/* {{{ od_igbinary_serialize_string_table */
+/** Serializes the string table. */
+inline int od_igbinary_serialize_string_table(od_igbinary_serialize_data *igsd TSRMLS_DC) {
+	int i = 0;
+	struct hash_si *h = &igsd->strings;
+	uint32_t *indexes = (int*)emalloc(sizeof(int) * igsd->strings_count);
+	uint32_t string_table_start = igsd->buffer_size;
+
+	if (!indexes) {
+		return 1;
+	}
+
+	od_igbinary_serialize32_at(igsd, string_table_start, OD_IGBINARY_STRING_TABLE_START_OFFSET	TSRMLS_CC);
+
+	// strings
+	for (i = 0; i < h->size; i++) {
+		if (h->data[i].key != NULL) {
+			indexes[h->data[i].value] = igsd->buffer_size - string_table_start;
+			od_igbinary_serialize_chararray(igsd, h->data[i].key, h->data[i].key_len TSRMLS_CC);
+		}
+	}
+
+	od_igbinary_serialize32(igsd, igsd->strings_count TSRMLS_CC);
+
+	od_igbinary_serialize32_at(igsd, igsd->buffer_size, OD_IGBINARY_STRING_TABLE_INDEX_OFFSET	TSRMLS_CC);
+
+	// indexes
+	for (i = 0; i < igsd->strings_count; i++) {
+		od_igbinary_serialize32(igsd, indexes[i] TSRMLS_CC);
+	}
+
+	efree(indexes);
+
+	return 0;
+}
+/* }}} */
+
+inline int od_igbinary_clone_string_table(od_igbinary_serialize_data *igsd, od_igbinary_unserialize_data *orig TSRMLS_DC) {
+	int32_t string_table_start = 0;
+	int32_t index_offset = 0;
+	uint32_t strings_count = 0;
+	int32_t i = 0;
+	char *str = NULL;
+	uint32_t str_len = 0;
+	uint32_t string_offset = 0;
+
+	char *buffer_backup = orig->buffer;
+	orig->buffer = orig->original_buffer;
+	string_table_start = (int32_t)od_igbinary_unserialize32_at(orig, OD_IGBINARY_STRING_TABLE_START_OFFSET	TSRMLS_CC);
+	index_offset = (int32_t)od_igbinary_unserialize32_at(orig, OD_IGBINARY_STRING_TABLE_INDEX_OFFSET	TSRMLS_CC);
+	strings_count = od_igbinary_unserialize32_at(orig, index_offset - 4	TSRMLS_CC);
+
+	for(i = 0; i < strings_count; i++) {
+		string_offset = string_table_start + od_igbinary_unserialize32_at(orig, index_offset + 4 * i	TSRMLS_CC);
+		od_igbinary_unserialize_string_from_table(orig, &str, &str_len, string_offset TSRMLS_CC);
+		hash_si_insert(&igsd->strings, str, str_len, i);
+	}
+	igsd->strings_count = strings_count;
+
+	orig->buffer = buffer_backup;
+	return 0;
+}
+
+/* {{{ od_igbinary_serialize_update_string_table */
+/** Update offset for the string table. */
+inline int od_igbinary_serialize_update_string_table(od_igbinary_serialize_data *igsd, od_igbinary_unserialize_data *orig, int32_t delta TSRMLS_DC) {
+	int32_t string_table_start = 0;
+	int32_t index_offset = 0;
+	uint32_t original_strings_count = 0;
+
+	char *buffer_backup = orig->buffer;
+	orig->buffer = orig->original_buffer;
+	string_table_start = (int32_t)od_igbinary_unserialize32_at(orig, OD_IGBINARY_STRING_TABLE_START_OFFSET	TSRMLS_CC);
+	index_offset = (int32_t)od_igbinary_unserialize32_at(orig, OD_IGBINARY_STRING_TABLE_INDEX_OFFSET	TSRMLS_CC);
+	original_strings_count = od_igbinary_unserialize32_at(orig, index_offset - 4	TSRMLS_CC);
+
+	if (igsd->string_table_update) {
+		od_igbinary_serialize_string_table(igsd TSRMLS_CC);
+	} else {
+		// Only update the offset.
+		od_igbinary_serialize_memcpy(igsd, orig->buffer + string_table_start, index_offset + original_strings_count * 4 - string_table_start);
+		od_igbinary_serialize32_at(igsd, (uint32_t)(string_table_start + delta), OD_IGBINARY_STRING_TABLE_START_OFFSET	TSRMLS_CC);
+		od_igbinary_serialize32_at(igsd, (uint32_t)(index_offset + delta), OD_IGBINARY_STRING_TABLE_INDEX_OFFSET	TSRMLS_CC);
+	}
+
+	orig->buffer = buffer_backup;
+	return 0;
+}
+/* }}} */
+
 /* {{{ od_igbinary_serialize_array_ref */
 /** Serializes array reference. */
 
@@ -746,8 +1116,8 @@ inline static int od_igbinary_serialize_array_sleep(od_igbinary_serialize_data *
 	}
 
 	if (n == 0) {
-		od_igbinary_serialize_value_len(igsd,0,igsd->buffer_size);
 		igsd->buffer_size += OD_IGBINARY_VALUE_LEN_SIZE;
+		od_igbinary_serialize_value_len(igsd,0,igsd->buffer_size - OD_IGBINARY_VALUE_LEN_SIZE);
 		return 0;
 	}
 
@@ -784,7 +1154,8 @@ inline static int od_igbinary_serialize_array_sleep(od_igbinary_serialize_data *
 				if(ODUS_G(remove_default) && !incomplete_class && ce && is_default(Z_STRVAL_PP(d),Z_STRLEN_PP(d)+1,hash,*v,&ce->default_properties)) {
 					num_defaults ++;
 				} else {
-					r += od_igbinary_serialize_string(igsd, Z_STRVAL_PP(d), Z_STRLEN_PP(d) TSRMLS_CC);
+					//r += od_igbinary_serialize_string(igsd, Z_STRVAL_PP(d), Z_STRLEN_PP(d) TSRMLS_CC);
+					r += od_igbinary_serialize_array_key(igsd, true, HASH_KEY_IS_STRING, -1, Z_STRVAL_PP(d), Z_STRLEN_PP(d) TSRMLS_CC);
 					r += od_igbinary_serialize_zval(igsd, *v TSRMLS_CC);
 				}
 			} else if (ce) {
@@ -801,7 +1172,8 @@ inline static int od_igbinary_serialize_array_sleep(od_igbinary_serialize_data *
 						if(ODUS_G(remove_default) && !incomplete_class && ce && is_default(priv_name,prop_name_length+1,hash,*v,&ce->default_properties)) {
 							num_defaults ++;
 						} else {
-							r += od_igbinary_serialize_string(igsd, priv_name, prop_name_length TSRMLS_CC);
+							//r += od_igbinary_serialize_string(igsd, priv_name, prop_name_length TSRMLS_CC);
+							r += od_igbinary_serialize_array_key(igsd, true, HASH_KEY_IS_STRING, -1, priv_name, prop_name_length TSRMLS_CC);
 							r += od_igbinary_serialize_zval(igsd, *v TSRMLS_CC);
 						}
 
@@ -818,7 +1190,8 @@ inline static int od_igbinary_serialize_array_sleep(od_igbinary_serialize_data *
 						if(ODUS_G(remove_default) && !incomplete_class && ce && is_default(prot_name,prop_name_length+1,hash,*v,&ce->default_properties)) {
 							num_defaults ++;
 						} else {
-							r += od_igbinary_serialize_string(igsd, prot_name, prop_name_length TSRMLS_CC);
+							//r += od_igbinary_serialize_string(igsd, prot_name, prop_name_length TSRMLS_CC);
+							r += od_igbinary_serialize_array_key(igsd, true, HASH_KEY_IS_STRING, -1, prot_name, prop_name_length TSRMLS_CC);
 							r += od_igbinary_serialize_zval(igsd, *v TSRMLS_CC);
 						}
 
@@ -828,14 +1201,16 @@ inline static int od_igbinary_serialize_array_sleep(od_igbinary_serialize_data *
 					efree(prot_name);
 
 					/* no win */
-					r += od_igbinary_serialize_string(igsd, Z_STRVAL_PP(d), Z_STRLEN_PP(d) TSRMLS_CC);
+					//r += od_igbinary_serialize_string(igsd, Z_STRVAL_PP(d), Z_STRLEN_PP(d) TSRMLS_CC);
+					r += od_igbinary_serialize_array_key(igsd, true, HASH_KEY_IS_STRING, -1, Z_STRVAL_PP(d), Z_STRLEN_PP(d) TSRMLS_CC);
 					r += od_igbinary_serialize_null(igsd TSRMLS_CC);
 					php_error_docref(NULL TSRMLS_CC, E_NOTICE, "\"%s\" returned as member variable from __sleep() but does not exist", Z_STRVAL_PP(d));
 				} while (0);
 
 			} else {
 				// if all else fails, just serialize the value in anyway.
-				r += od_igbinary_serialize_string(igsd, Z_STRVAL_PP(d), Z_STRLEN_PP(d) TSRMLS_CC);
+				//r += od_igbinary_serialize_string(igsd, Z_STRVAL_PP(d), Z_STRLEN_PP(d) TSRMLS_CC);
+				r += od_igbinary_serialize_array_key(igsd, true, HASH_KEY_IS_STRING, -1, Z_STRVAL_PP(d), Z_STRLEN_PP(d) TSRMLS_CC);
 				r += od_igbinary_serialize_zval(igsd, *v TSRMLS_CC);
 			}
 		}
@@ -860,13 +1235,40 @@ inline static int od_igbinary_serialize_array_sleep(od_igbinary_serialize_data *
 /** Serialize object name. */
 inline static int od_igbinary_serialize_object_name(od_igbinary_serialize_data *igsd, const char *class_name, uint32_t name_len TSRMLS_DC) {
 	uint32_t t;
+	uint32_t *i = &t;
 
-	//odus disable string compact
-	/*
-	if (hash_si_find(&igsd->strings, class_name, name_len, i) == 1) {
-		hash_si_insert(&igsd->strings, class_name, name_len, igsd->string_count);
-		igsd->string_count += 1;
-*/
+	if (igsd->compact_strings) {
+		if (hash_si_find(&od_static_strings_hash, class_name, name_len, i) == 0) {
+			if (*i <= 0xff) {
+				od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_object_static_string_id8 TSRMLS_CC);
+				od_igbinary_serialize8(igsd, (uint8_t) *i TSRMLS_CC);
+			} else if (*i <= 0xffff) {
+				od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_object_static_string_id16 TSRMLS_CC);
+				od_igbinary_serialize16(igsd, (uint16_t) *i TSRMLS_CC);
+			} else {
+				od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_object_static_string_id32 TSRMLS_CC);
+				od_igbinary_serialize32(igsd, (uint32_t) *i TSRMLS_CC);
+			}
+			return 0;
+		}
+
+		if (hash_si_find(&igsd->strings, class_name, name_len, i) == 1) {
+			hash_si_insert(&igsd->strings, class_name, name_len, igsd->strings_count);
+			*i = igsd->strings_count;
+			igsd->strings_count += 1;
+		}
+
+		if (*i <= 0xff) {
+			od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_object_id8 TSRMLS_CC);
+			od_igbinary_serialize8(igsd, (uint8_t) *i TSRMLS_CC);
+		} else if (*i <= 0xffff) {
+			od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_object_id16 TSRMLS_CC);
+			od_igbinary_serialize16(igsd, (uint16_t) *i TSRMLS_CC);
+		} else {
+			od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_object_id32 TSRMLS_CC);
+			od_igbinary_serialize32(igsd, (uint32_t) *i TSRMLS_CC);
+		}
+	} else {
 		if (name_len <= 0xff) {
 			od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_object8 TSRMLS_CC);
 			od_igbinary_serialize8(igsd, (uint8_t) name_len TSRMLS_CC);
@@ -888,22 +1290,7 @@ inline static int od_igbinary_serialize_object_name(od_igbinary_serialize_data *
 		igsd->buffer_size += name_len;
 
 		igsd->buffer[igsd->buffer_size++] = '\0';
-	//}
-	//else {
-		//XXX
-		// will not come here because odus doesn't support string compact
-		/* already serialized string */
-		//if (*i <= 0xff) {
-			//od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_object_id8 TSRMLS_CC);
-			//od_igbinary_serialize8(igsd, (uint8_t) *i TSRMLS_CC);
-		//} else if (*i <= 0xffff) {
-			//od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_object_id16 TSRMLS_CC);
-			//od_igbinary_serialize16(igsd, (uint16_t) *i TSRMLS_CC);
-		//} else {
-			//od_igbinary_serialize8(igsd, (uint8_t) od_igbinary_type_object_id32 TSRMLS_CC);
-			//od_igbinary_serialize32(igsd, (uint32_t) *i TSRMLS_CC);
-		//}
-	//}
+	}
 
 	return 0;
 }
@@ -1086,7 +1473,9 @@ int od_igbinary_serialize_zval(od_igbinary_serialize_data *igsd, zval *z TSRMLS_
 		case IS_ARRAY:
 			return od_igbinary_serialize_array(igsd, z, NULL, false, false, false TSRMLS_CC);
 		case IS_STRING:
-			return od_igbinary_serialize_string(igsd, Z_STRVAL_P(z), Z_STRLEN_P(z) TSRMLS_CC);
+			// We enable string compact for class name and property name only,
+			// so call serialize_chararray for all literal strings.
+			return od_igbinary_serialize_chararray_ex(igsd, Z_STRVAL_P(z), Z_STRLEN_P(z) TSRMLS_CC);
 		case IS_LONG:
 			return od_igbinary_serialize_long(igsd, Z_LVAL_P(z) TSRMLS_CC);
 		case IS_NULL:
@@ -1106,19 +1495,32 @@ int od_igbinary_serialize_zval(od_igbinary_serialize_data *igsd, zval *z TSRMLS_
 /* }}} */
 /* {{{ od_igbinary_unserialize_data_init */
 /** Inits od_igbinary_unserialize_data_init. */
-inline static int od_igbinary_unserialize_data_init(od_igbinary_unserialize_data *igsd TSRMLS_DC) {
+inline int od_igbinary_unserialize_data_init(od_igbinary_unserialize_data *igsd TSRMLS_DC) {
 	//smart_str empty_str = { 0 };
+	uint32_t format_version = (uint32_t)ODUS_G(format_version);
 
 	igsd->buffer = NULL;
 	igsd->buffer_size = 0;
 	igsd->buffer_offset = 0;
 
-	//odus disable string compact
-	//igsd->strings = NULL;
-	//igsd->strings_count = 0;
+	igsd->strings = NULL;
+	igsd->strings_count = 0;
 	//igsd->strings_capacity = 4;
 
-	//igsd->string0_buf = empty_str;
+	if (format_version == OD_IGBINARY_FORMAT_VERSION_02) {
+		igsd->compact_strings = true;
+		igsd->compress_value_len = true;
+	} else if (format_version == OD_IGBINARY_FORMAT_VERSION_01) {
+		igsd->compact_strings = false;
+		igsd->compress_value_len = false;
+	} else {
+		// Default, enable both.
+		debug("od_igbinary_serialize_data_init: wrong format_version configured.");
+		igsd->compact_strings = true;
+		igsd->compress_value_len = true;
+	}
+
+	igsd->root_id = 0;
 
 	//odus doesn't allow object references
 	//igsd->references = NULL;
@@ -1131,49 +1533,125 @@ inline static int od_igbinary_unserialize_data_init(od_igbinary_unserialize_data
 	//	return 1;
 	//}
 
-	//odus disable string compact
-	//igsd->strings = (struct od_igbinary_unserialize_string_pair *) emalloc(sizeof(struct od_igbinary_unserialize_string_pair) * igsd->strings_capacity);
-	//if (igsd->strings == NULL) {
-	//	efree(igsd->references);
-	//	return 1;
-	//}
+	// igsd->strings = (struct od_igbinary_unserialize_string_pair *) emalloc(sizeof(struct od_igbinary_unserialize_string_pair) * igsd->strings_capacity);
+	// if (igsd->strings == NULL) {
+	// 	//efree(igsd->references);
+	// 	return 1;
+	// }
 
 	return 0;
 }
 /* }}} */
+
+/* {{{ od_igbinary_unserialize_data_init */
+/** Inits od_igbinary_unserialize_data_init. */
+inline int od_igbinary_unserialize_data_clone(od_igbinary_unserialize_data *dest, od_igbinary_unserialize_data *src TSRMLS_DC) {
+	if (!dest || !src) {
+		debug("null pointer!\n");
+		return 1;
+	}
+
+	dest->buffer = src->buffer;
+	dest->buffer_size = src->buffer_size;
+	dest->buffer_offset = src->buffer_offset;
+	dest->strings = src->strings;
+	dest->strings_count = src->strings_count;
+	dest->original_buffer = src->original_buffer;
+	dest->string_table_start = src->string_table_start;
+	dest->strings_index_offset = src->strings_index_offset;
+	dest->compact_strings = src->compact_strings;
+	dest->compress_value_len = src->compress_value_len;
+	dest->root_id = src->root_id;
+	return 0;
+}
+/* }}} */
+
 /* {{{ od_igbinary_unserialize_data_deinit */
 /** Deinits od_igbinary_unserialize_data_init. */
-inline static void od_igbinary_unserialize_data_deinit(od_igbinary_unserialize_data *igsd TSRMLS_DC) {
+inline void od_igbinary_unserialize_data_deinit(od_igbinary_unserialize_data *igsd TSRMLS_DC) {
+	if (igsd->strings) {
+		efree(igsd->strings);
+	}
 
 	return;
 }
 /* }}} */
 /* {{{ od_igbinary_unserialize_header */
 /** Unserialize header. Check for version. */
-inline int od_igbinary_unserialize_header(od_igbinary_unserialize_data *igsd TSRMLS_DC) {
-	uint32_t version;
-
+inline int od_igbinary_unserialize_header(od_igbinary_unserialize_data *igsd, uint32_t *header TSRMLS_DC) {
 	if (igsd->buffer_offset + 4 >= igsd->buffer_size) {
 		return 1;
 	}
 
-	version = od_igbinary_unserialize32(igsd TSRMLS_CC);
+	*header = od_igbinary_unserialize32(igsd TSRMLS_CC);
 
 	/* Support older version 1 and the current format 2 */
-	if (version == OD_IGBINARY_FORMAT_VERSION) {
+	if (*header == (OD_IGBINARY_FORMAT_FLAG | OD_IGBINARY_FORMAT_VERSION_01)) {
+		igsd->compact_strings = false;
+		igsd->compress_value_len = false;
+		return 0;
+	} else if (*header == (OD_IGBINARY_FORMAT_FLAG | OD_IGBINARY_FORMAT_VERSION_02)) {
+		igsd->compact_strings = true;
+		igsd->compress_value_len = true;
 		return 0;
 	} else {
-		od_error(E_ERROR, "od_igbinary_unserialize_header: unsupported version: %u, should be %u", (unsigned int) version,(unsigned int) OD_IGBINARY_FORMAT_VERSION);
+		od_error(E_ERROR, "od_igbinary_unserialize_header: unsupported version: 0x%x, should be 0x%x", (unsigned int) *header,(unsigned int) OD_IGBINARY_FORMAT_HEADER);
 		return 1;
 	}
 }
 /* }}} */
+
+/* {{{ od_igbinary_unserialize_init_string_table */
+/** Init string table. */
+inline int od_igbinary_unserialize_init_string_table(od_igbinary_unserialize_data *igsd TSRMLS_DC) {
+	if (igsd->buffer_offset + 8 >= igsd->buffer_size) {
+		return 1;
+	}
+
+	igsd->string_table_start = od_igbinary_unserialize32(igsd TSRMLS_CC);
+
+	igsd->strings_index_offset = od_igbinary_unserialize32(igsd TSRMLS_CC);
+
+	igsd->strings_count = od_igbinary_unserialize32_at(igsd, igsd->strings_index_offset - sizeof(uint32_t) TSRMLS_CC);
+
+	igsd->strings = (struct od_igbinary_unserialize_string_pair *) emalloc(sizeof(struct od_igbinary_unserialize_string_pair) * igsd->strings_count);
+
+	if (igsd->strings == NULL) {
+		od_error(E_ERROR, "Fail to alloc memory for string table");
+		return 1;
+	}
+
+	// For lazy loading.
+	memset(igsd->strings, 0, sizeof(struct od_igbinary_unserialize_string_pair) * igsd->strings_count);
+
+	return 0;
+}
+/* }}} */
+
+/* {{{ od_igbinary_unserialize8_at */
+/** Unserialize 8bit value at specified position. */
+inline uint8_t od_igbinary_unserialize8_at(od_igbinary_unserialize_data *igsd, uint32_t pos TSRMLS_DC) {
+	return igsd->buffer[pos];
+}
+/* }}} */
+
 /* {{{ od_igbinary_unserialize8 */
 /** Unserialize 8bit value. */
 inline uint8_t od_igbinary_unserialize8(od_igbinary_unserialize_data *igsd TSRMLS_DC) {
 	return igsd->buffer[igsd->buffer_offset++];
 }
 /* }}} */
+
+/* {{{ od_igbinary_unserialize16 */
+/** Unserialize 16bit value at specified position. */
+inline uint16_t od_igbinary_unserialize16_at(od_igbinary_unserialize_data *igsd, uint32_t pos TSRMLS_DC) {
+	uint16_t ret = 0;
+	ret |= ((uint16_t) igsd->buffer[pos++] << 8);
+	ret |= ((uint16_t) igsd->buffer[pos++] << 0);
+	return ret;
+}
+/* }}} */
+
 /* {{{ od_igbinary_unserialize16 */
 /** Unserialize 16bit value. */
 inline uint16_t od_igbinary_unserialize16(od_igbinary_unserialize_data *igsd TSRMLS_DC) {
@@ -1183,6 +1661,19 @@ inline uint16_t od_igbinary_unserialize16(od_igbinary_unserialize_data *igsd TSR
 	return ret;
 }
 /* }}} */
+
+/* {{{ od_igbinary_unserialize32 */
+/** Unserialize 32bit value at specified position. */
+inline uint32_t od_igbinary_unserialize32_at(od_igbinary_unserialize_data *igsd, uint32_t pos TSRMLS_DC) {
+	uint32_t ret = 0;
+	ret |= ((uint32_t) igsd->buffer[pos++] << 24);
+	ret |= ((uint32_t) igsd->buffer[pos++] << 16);
+	ret |= ((uint32_t) igsd->buffer[pos++] << 8);
+	ret |= ((uint32_t) igsd->buffer[pos++] << 0);
+	return ret;
+}
+/* }}} */
+
 /* {{{ od_igbinary_unserialize32 */
 /** Unserialize 32bit value. */
 inline uint32_t od_igbinary_unserialize32(od_igbinary_unserialize_data *igsd TSRMLS_DC) {
@@ -1194,6 +1685,7 @@ inline uint32_t od_igbinary_unserialize32(od_igbinary_unserialize_data *igsd TSR
 	return ret;
 }
 /* }}} */
+
 /* {{{ od_igbinary_unserialize64 */
 /** Unserialize 64bit value. */
 inline uint64_t od_igbinary_unserialize64(od_igbinary_unserialize_data *igsd TSRMLS_DC) {
@@ -1306,11 +1798,107 @@ inline int od_igbinary_unserialize_double(od_igbinary_unserialize_data *igsd, od
 }
 /* }}} */
 
+/* {{{ od_igbinary_unserialize_static_string */
+/** Unserializes static string. */
+inline int od_igbinary_unserialize_static_string(od_igbinary_unserialize_data *igsd, od_igbinary_type t, char **s, uint32_t *len TSRMLS_DC) {
+	size_t i;
+
+	if (t == od_igbinary_type_static_string_id8 || t == od_igbinary_type_object_static_string_id8) {
+		if (igsd->buffer_offset + 1 > igsd->buffer_size) {
+			zend_error(E_WARNING, "od_igbinary_unserialize_static_string: end-of-data");
+			return 1;
+		}
+		i = od_igbinary_unserialize8(igsd TSRMLS_CC);
+	} else if (t == od_igbinary_type_static_string_id16 || t == od_igbinary_type_object_static_string_id16) {
+		if (igsd->buffer_offset + 2 > igsd->buffer_size) {
+			zend_error(E_WARNING, "od_igbinary_unserialize_static_string: end-of-data");
+			return 1;
+		}
+		i = od_igbinary_unserialize16(igsd TSRMLS_CC);
+	} else if (t == od_igbinary_type_static_string_id32 || t == od_igbinary_type_object_static_string_id32) {
+		if (igsd->buffer_offset + 4 > igsd->buffer_size) {
+			zend_error(E_WARNING, "od_igbinary_unserialize_static_string: end-of-data");
+			return 1;
+		}
+		i = od_igbinary_unserialize32(igsd TSRMLS_CC);
+	} else {
+		zend_error(E_WARNING, "od_igbinary_unserialize_static_string: unknown type '%02x', position %zu", t, igsd->buffer_offset);
+		return 1;
+	}
+
+	if (i >= od_static_strings_count) {
+		zend_error(E_WARNING, "od_igbinary_unserialize_static_string: string index is out-of-bounds, i %d, strings_count %d", i, od_static_strings_count);
+		return 1;
+	}
+
+	*s = od_static_strings[i];
+	*len = strlen(od_static_strings[i]);
+
+	return 0;
+}
+/* }}} */
+
+/* {{{ od_igbinary_unserialize_string */
+/** Unserializes string. Unserializes both actual string or by string id. */
+inline static int od_igbinary_unserialize_string(od_igbinary_unserialize_data *igsd, od_igbinary_type t, char **s, uint32_t *len TSRMLS_DC) {
+	size_t i;
+
+	if (t == od_igbinary_type_string_id8 || t == od_igbinary_type_object_id8) {
+		if (igsd->buffer_offset + 1 > igsd->buffer_size) {
+			zend_error(E_WARNING, "od_igbinary_unserialize_string: end-of-data");
+			return 1;
+		}
+		i = od_igbinary_unserialize8(igsd TSRMLS_CC);
+	} else if (t == od_igbinary_type_string_id16 || t == od_igbinary_type_object_id16) {
+		if (igsd->buffer_offset + 2 > igsd->buffer_size) {
+			zend_error(E_WARNING, "od_igbinary_unserialize_string: end-of-data");
+			return 1;
+		}
+		i = od_igbinary_unserialize16(igsd TSRMLS_CC);
+	} else if (t == od_igbinary_type_string_id32 || t == od_igbinary_type_object_id32) {
+		if (igsd->buffer_offset + 4 > igsd->buffer_size) {
+			zend_error(E_WARNING, "od_igbinary_unserialize_string: end-of-data");
+			return 1;
+		}
+		i = od_igbinary_unserialize32(igsd TSRMLS_CC);
+	} else {
+		zend_error(E_WARNING, "od_igbinary_unserialize_string: unknown type '%02x', position %zu", t, igsd->buffer_offset);
+		return 1;
+	}
+
+	if (i >= igsd->strings_count) {
+		zend_error(E_WARNING, "od_igbinary_unserialize_string: string index is out-of-bounds, i %d, strings_count %d", i, igsd->strings_count);
+		return 1;
+	}
+
+	// Lazy loading the string.
+	if (!igsd->strings[i].data) {
+		// unserializing functions are tied to igsd->buffer. Tune it here to make them happy.
+		uint8_t *buffer_backup = igsd->buffer;
+		igsd->buffer = igsd->original_buffer;
+
+		uint32_t index_offset = igsd->strings_index_offset + i * sizeof(uint32_t);
+		uint32_t string_offset = od_igbinary_unserialize32_at(igsd, index_offset TSRMLS_CC) + igsd->string_table_start;
+		od_igbinary_unserialize_string_from_table(igsd, &igsd->strings[i].data, &igsd->strings[i].len, string_offset TSRMLS_CC);
+
+		// Restore current buffer.
+		igsd->buffer = buffer_backup;
+
+		if (!igsd->strings[i].data) {
+			return 1;
+		}
+	}
+
+	*s = igsd->strings[i].data;
+	*len = igsd->strings[i].len;
+
+	return 0;
+}
+/* }}} */
+
 /* {{{ od_igbinary_unserialize_chararray */
 /** Unserializes chararray of string. */
 inline int od_igbinary_unserialize_chararray(od_igbinary_unserialize_data *igsd, od_igbinary_type t, char **s, uint32_t *len TSRMLS_DC) {
-
-
 	uint32_t l;
 
 	//XXX
@@ -1349,14 +1937,87 @@ inline int od_igbinary_unserialize_chararray(od_igbinary_unserialize_data *igsd,
 }
 /* }}} */
 
+/* {{{ od_igbinary_unserialize_class_name */
+/** Unserializes class name. */
+inline int od_igbinary_unserialize_class_name(od_igbinary_unserialize_data *igsd, od_igbinary_type t, char **name, uint32_t *name_len TSRMLS_DC) {
+	if (t == od_igbinary_type_object8 || t == od_igbinary_type_object16 || t == od_igbinary_type_object32) {
+		return od_igbinary_unserialize_chararray(igsd, t, name, name_len TSRMLS_CC);
+	} else if (t == od_igbinary_type_object_static_string_id8 || t == od_igbinary_type_object_static_string_id16 || t == od_igbinary_type_object_static_string_id32) {
+		return od_igbinary_unserialize_static_string(igsd, t, name, name_len TSRMLS_CC);
+	} else if (t == od_igbinary_type_object_id8 || t == od_igbinary_type_object_id16 || t == od_igbinary_type_object_id32) {
+		return od_igbinary_unserialize_string(igsd, t, name, name_len TSRMLS_CC);
+	}
+	else {
+		od_error(E_ERROR, "od_igbinary_unserialize_class_name: unknown object type '%02x', position %zu", t, igsd->buffer_offset);
+		return 1;
+	}
+}
+/* }}} */
+
+
+/* {{{ od_igbinary_unserialize_string_from_table */
+/** Unserializes chararray of string from the string table. */
+inline int od_igbinary_unserialize_string_from_table(od_igbinary_unserialize_data *igsd, char **s, uint32_t *len, uint32_t pos TSRMLS_DC) {
+	uint32_t l;
+	uint32_t offset = pos;
+
+	od_igbinary_type t = (od_igbinary_type) od_igbinary_unserialize8_at(igsd, offset TSRMLS_CC);
+
+	offset += 1;
+	if (t == od_igbinary_type_string8 || t == od_igbinary_type_object8) {
+		// Ignore the check, because buffer_size may be small for an inside object. Just make sure
+		// the buffer start and offset is correct on calling.
+
+		// if (offset + 2 > igsd->buffer_size) {
+		// 	od_error(E_ERROR, "od_igbinary_unserialize_string_from_table: end-of-data");
+		// 	return 1;
+		// }
+		l = od_igbinary_unserialize8_at(igsd, offset TSRMLS_CC);
+		offset += 1;
+	} else if (t == od_igbinary_type_string16 || t == od_igbinary_type_object16) {
+		// if (offset + 3 > igsd->buffer_size) {
+		// 	od_error(E_ERROR, "od_igbinary_unserialize_string_from_table: end-of-data");
+		// 	return 1;
+		// }
+		l = od_igbinary_unserialize16_at(igsd, offset TSRMLS_CC);
+		offset += 2;
+	} else if (t == od_igbinary_type_string32 || t == od_igbinary_type_object32) {
+		// if (offset + 5 > igsd->buffer_size) {
+		// 	od_error(E_ERROR, "od_igbinary_unserialize_string_from_table: end-of-data");
+		// 	return 1;
+		// }
+		l = od_igbinary_unserialize32_at(igsd, offset TSRMLS_CC);
+		offset += 4;
+	} else {
+		od_error(E_ERROR, "od_igbinary_unserialize_string_from_table: unknown type '%02x', position %zu", t, igsd->buffer_offset);
+		return 1;
+	}
+
+	*s = (char *) (igsd->buffer + offset);
+	*len = l;
+
+	return 0;
+}
+/* }}} */
+
 inline od_igbinary_type od_igbinary_get_type(od_igbinary_unserialize_data *igsd) {
 	if (igsd->buffer_offset + 1 > igsd->buffer_size) {
 		debug("wrong in %s:%d",__FUNCTION__,__LINE__);
-		od_error(E_ERROR, "od_igbinary_unserialize_zval: end-of-data");
+		od_error(E_ERROR, "od_igbinary_get_type: end-of-data");
 		return od_igbinary_type_null;
 	}
 
 	return (od_igbinary_type) od_igbinary_unserialize8(igsd TSRMLS_CC);
+}
+
+inline od_igbinary_type od_igbinary_get_type_at(od_igbinary_unserialize_data *igsd, uint32_t pos) {
+	if (pos + 1 > igsd->buffer_size) {
+		debug("wrong in %s:%d",__FUNCTION__,__LINE__);
+		od_error(E_ERROR, "od_igbinary_get_type_at: end-of-data");
+		return od_igbinary_type_null;
+	}
+
+	return (od_igbinary_type) od_igbinary_unserialize8_at(igsd, pos TSRMLS_CC);
 }
 
 inline uint32_t od_igbinary_get_member_num(od_igbinary_unserialize_data *igsd, od_igbinary_type t) {
@@ -1365,30 +2026,30 @@ inline uint32_t od_igbinary_get_member_num(od_igbinary_unserialize_data *igsd, o
 
 	if (t == od_igbinary_type_array8) {
 		if (igsd->buffer_offset + 1 > igsd->buffer_size) {
-			od_error(E_ERROR, "od_igbinary_unserialize_array: end-of-data");
+			od_error(E_ERROR, "od_igbinary_get_member_num: end-of-data");
 			return -1;
 		}
 		n = od_igbinary_unserialize8(igsd TSRMLS_CC);
 	} else if (t == od_igbinary_type_array16) {
 		if (igsd->buffer_offset + 2 > igsd->buffer_size) {
-			od_error(E_ERROR, "od_igbinary_unserialize_array: end-of-data");
+			od_error(E_ERROR, "od_igbinary_get_member_num: end-of-data");
 			return -1;
 		}
 		n = od_igbinary_unserialize16(igsd TSRMLS_CC);
 	} else if (t == od_igbinary_type_array32) {
 		if (igsd->buffer_offset + 4 > igsd->buffer_size) {
-			od_error(E_ERROR, "od_igbinary_unserialize_array: end-of-data");
+			od_error(E_ERROR, "od_igbinary_get_member_num: end-of-data");
 			return -1;
 		}
 		n = od_igbinary_unserialize32(igsd TSRMLS_CC);
 	} else {
-		od_error(E_ERROR, "od_igbinary_unserialize_array: unknown type '%02x', position %zu", t, igsd->buffer_offset);
+		od_error(E_ERROR, "od_igbinary_get_member_num: unknown type '%02x', position %zu", t, igsd->buffer_offset);
 		return -1;
 	}
 
 	// n cannot be larger than the number of minimum "objects" in the array
 	if (n > igsd->buffer_size - igsd->buffer_offset) {
-		od_error(E_ERROR, "%s: data size %zu smaller that requested array length %zu.", "od_igbinary_unserialize_array", igsd->buffer_size - igsd->buffer_offset, n);
+		od_error(E_ERROR, "%s: data size %zu smaller that requested array length %zu.", "od_igbinary_get_member_num", igsd->buffer_size - igsd->buffer_offset, n);
 		return -1;
 	}
 
@@ -1397,23 +2058,86 @@ inline uint32_t od_igbinary_get_member_num(od_igbinary_unserialize_data *igsd, o
 
 inline uint32_t od_igbinary_get_value_len(od_igbinary_unserialize_data *igsd) {
 
-	if (igsd->buffer_offset + OD_IGBINARY_VALUE_LEN_SIZE > igsd->buffer_size) {
-		od_error(E_ERROR, "od_igbinary_unserialize_array: end-of-data");
-		return -1;
-	}
+	if (igsd->compress_value_len) {
+		uint8_t encode_len_probe = 0;
 
-	return (uint32_t)od_igbinary_unserialize32(igsd);
+		if (igsd->buffer_offset + 1 > igsd->buffer_size) {
+			od_error(E_ERROR, "od_igbinary_get_value_len: end-of-data");
+			return -1;
+		}
+		encode_len_probe = od_igbinary_unserialize8_at(igsd, igsd->buffer_offset);
+
+		if ((encode_len_probe & 0xc0) == 0x40) {
+			igsd->buffer_offset += 1;
+
+			return encode_len_probe & 0x3f;
+		} else if ((encode_len_probe & 0xc0) == 0x80) {
+			if (igsd->buffer_offset + 2 > igsd->buffer_size) {
+				od_error(E_ERROR, "od_igbinary_get_value_len: end-of-data");
+				return -1;
+			}
+
+			uint16_t value_len = od_igbinary_unserialize16(igsd);
+			return value_len & 0x3fff;
+		} else {
+			if (igsd->buffer_offset + 4 > igsd->buffer_size) {
+				od_error(E_ERROR, "od_igbinary_get_value_len: end-of-data");
+				return -1;
+			}
+
+			return (uint32_t)od_igbinary_unserialize32(igsd);
+		}
+	} else {
+		if (igsd->buffer_offset + OD_IGBINARY_VALUE_LEN_SIZE > igsd->buffer_size) {
+			od_error(E_ERROR, "od_igbinary_get_value_len: end-of-data");
+			return -1;
+		}
+
+		return (uint32_t)od_igbinary_unserialize32(igsd);
+	}
 }
 
 inline int od_igbinary_skip_value_len(od_igbinary_unserialize_data *igsd) {
-	if (igsd->buffer_offset + OD_IGBINARY_VALUE_LEN_SIZE > igsd->buffer_size) {
-		od_error(E_ERROR, "od_igbinary_unserialize_array: end-of-data");
-		return 1;
+	if (igsd->compress_value_len) {
+		uint8_t encode_len_probe = 0;
+
+		if (igsd->buffer_offset + 1 > igsd->buffer_size) {
+			od_error(E_ERROR, "od_igbinary_skip_value_len: end-of-data");
+			return -1;
+		}
+		encode_len_probe = od_igbinary_unserialize8_at(igsd, igsd->buffer_offset);
+
+		if ((encode_len_probe & 0xc0) == 0x40) {
+			igsd->buffer_offset += 1;
+			return 0;
+		} else if ((encode_len_probe & 0xc0) == 0x80) {
+			if (igsd->buffer_offset + 2 > igsd->buffer_size) {
+				od_error(E_ERROR, "od_igbinary_skip_value_len: end-of-data");
+				return -1;
+			}
+
+			igsd->buffer_offset += 2;
+			return 0;
+		} else {
+			if (igsd->buffer_offset + 4 > igsd->buffer_size) {
+				od_error(E_ERROR, "od_igbinary_skip_value_len: end-of-data");
+				return -1;
+			}
+
+			igsd->buffer_offset += 4;
+			return 0;
+		}
+	} else {
+
+		if (igsd->buffer_offset + OD_IGBINARY_VALUE_LEN_SIZE > igsd->buffer_size) {
+			od_error(E_ERROR, "od_igbinary_skip_value_len: end-of-data");
+			return 1;
+		}
+
+		igsd->buffer_offset += OD_IGBINARY_VALUE_LEN_SIZE;
+
+		return 0;
 	}
-
-	igsd->buffer_offset += OD_IGBINARY_VALUE_LEN_SIZE;
-
-	return 0;
 }
 
 inline int od_igbinary_unserialize_skip_key(od_igbinary_unserialize_data *igsd) {
@@ -1432,10 +2156,25 @@ inline int od_igbinary_unserialize_get_key(od_igbinary_unserialize_data *igsd, c
 	od_igbinary_type key_type = od_igbinary_get_type(igsd TSRMLS_CC);
 
 	switch (key_type) {
+		case od_igbinary_type_string_id8:
+		case od_igbinary_type_string_id16:
+		case od_igbinary_type_string_id32:
+			if (od_igbinary_unserialize_string(igsd, key_type, key_p, key_len_p TSRMLS_CC)) {
+				return 1;
+			}
+			break;
+
 		case od_igbinary_type_string8:
 		case od_igbinary_type_string16:
 		case od_igbinary_type_string32:
 			if (od_igbinary_unserialize_chararray(igsd, key_type, key_p, key_len_p TSRMLS_CC)) {
+				return 1;
+			}
+			break;
+		case od_igbinary_type_static_string_id8:
+		case od_igbinary_type_static_string_id16:
+		case od_igbinary_type_static_string_id32:
+			if (od_igbinary_unserialize_static_string(igsd, key_type, key_p, key_len_p TSRMLS_CC)) {
 				return 1;
 			}
 			break;
@@ -1458,7 +2197,7 @@ inline int od_igbinary_unserialize_get_key(od_igbinary_unserialize_data *igsd, c
 			*key_index_p = 0;
 			break;
 		default:
-			od_error(E_ERROR, "od_igbinary_unserialize_array: unknown key type '%02x', position %zu", key_type, igsd->buffer_offset);
+			od_error(E_ERROR, "od_igbinary_unserialize_get_key: unknown key type '%02x', position %zu", key_type, igsd->buffer_offset);
 			return 1;
 	}
 
@@ -1507,7 +2246,6 @@ inline static int od_igbinary_unserialize_array(od_igbinary_unserialize_data *ig
 	h = HASH_OF(*z);
 
 	for (i = 0; i < n; i++) {
-
 		if(od_igbinary_unserialize_get_key(igsd,&key,&key_len,&key_index)){
 			zval_dtor(*z);
 			ZVAL_NULL(*z);
@@ -1606,13 +2344,7 @@ inline static int od_igbinary_unserialize_object(od_igbinary_unserialize_data *i
 	zval **args[1];
 	zval *arg_func_name;
 
-	if (t == od_igbinary_type_object8 || t == od_igbinary_type_object16 || t == od_igbinary_type_object32) {
-		if (od_igbinary_unserialize_chararray(igsd, t, &name, &name_len TSRMLS_CC)) {
-			return 1;
-		}
-	}
-	else {
-		od_error(E_ERROR, "od_igbinary_unserialize_object: unknown object type '%02x', position %zu", t, igsd->buffer_offset);
+	if (od_igbinary_unserialize_class_name(igsd, t, &name, &name_len TSRMLS_CC)) {
 		return 1;
 	}
 
@@ -1694,6 +2426,7 @@ inline static int od_igbinary_unserialize_object(od_igbinary_unserialize_data *i
 	}
 
 	t = (od_igbinary_type) od_igbinary_unserialize8(igsd TSRMLS_CC);
+
 	switch (t) {
 		case od_igbinary_type_array8:
 		case od_igbinary_type_array16:
@@ -1758,6 +2491,12 @@ int od_igbinary_unserialize_zval(od_igbinary_unserialize_data *igsd, zval **z TS
 		case od_igbinary_type_object8:
 		case od_igbinary_type_object16:
 		case od_igbinary_type_object32:
+		case od_igbinary_type_object_id8:
+		case od_igbinary_type_object_id16:
+		case od_igbinary_type_object_id32:
+		case od_igbinary_type_object_static_string_id8:
+		case od_igbinary_type_object_static_string_id16:
+		case od_igbinary_type_object_static_string_id32:
 			if (od_igbinary_unserialize_object(igsd, t, z TSRMLS_CC)) {
 				return 1;
 			}
@@ -1779,6 +2518,22 @@ int od_igbinary_unserialize_zval(od_igbinary_unserialize_data *igsd, zval **z TS
 			break;
 		case od_igbinary_type_string_empty:
 			ZVAL_EMPTY_STRING(*z);
+			break;
+		case od_igbinary_type_string_id8:
+		case od_igbinary_type_string_id16:
+		case od_igbinary_type_string_id32:
+			if (od_igbinary_unserialize_string(igsd, t, &tmp_chararray, &tmp_uint32_t TSRMLS_CC)) {
+				return 1;
+			}
+			ZVAL_STRINGL(*z, tmp_chararray, tmp_uint32_t, 1);
+			break;
+		case od_igbinary_type_static_string_id8:
+		case od_igbinary_type_static_string_id16:
+		case od_igbinary_type_static_string_id32:
+			if (od_igbinary_unserialize_static_string(igsd, t, &tmp_chararray, &tmp_uint32_t TSRMLS_CC)) {
+				return 1;
+			}
+			ZVAL_STRINGL(*z, tmp_chararray, tmp_uint32_t, 1);
 			break;
 		case od_igbinary_type_long8p:
 		case od_igbinary_type_long8n:

@@ -1,5 +1,5 @@
 --TEST--
-Test od_getobjectkeys_without_key()
+Test od_getobjectkeys_without_key() without "className"
 --SKIPIF--
 <?php if (!extension_loaded("odus")) print "skip"; ?>
 --FILE--
@@ -30,13 +30,13 @@ class World
 
 	public function callGetKeys() {
 		$ps = get_object_vars($this);
-		//unset($ps["className"]);
+		unset($ps["className"]);
 		$keys1 = array_keys($ps);
 		return $keys1;
 	}
 
 	public function callOdGetKeys() {
-		$keys = od_getobjectkeys_without_key($this);
+		$keys = od_getobjectkeys_without_key($this, 'className');
 		return $keys;
 	}
 }
@@ -57,26 +57,28 @@ $data1 = new ODWrapper(od_serialize($w1));
 $data1->someStr = "someStr";
 $data1->someStr2 = "someStr2";
 
-$keys = od_getobjectkeys_without_key($w1);
+$keys = od_getobjectkeys_without_key($w1, 'className');
 show(empty($keys)?"not support":"support");
 
-$keys = od_getobjectkeys_without_key($data1);
+$keys = od_getobjectkeys_without_key($data1, 'className');
 show(empty($keys)?"not support":"support");
 show(print_r($keys, true));
 $ps = get_object_vars($data1);
+unset($ps["className"]);
 $keys1 = array_keys($ps);
 show(print_r($keys1, true));
 show(judgeEqual($keys1, $keys)?"equal":"not equal");
 
-$keys = od_getobjectkeys_without_key("1234");
+$keys = od_getobjectkeys_without_key("1234", 'className');
 show(empty($keys)?"not support":"support");
 
 for ($i=0;$i<3;$i++) {
 
-$keys = od_getobjectkeys_without_key($data1->element);
+$keys = od_getobjectkeys_without_key($data1->element, 'className');
 show(empty($keys)?"not support":"support");
 //show(print_r($keys, true));
 $ps = get_object_vars($data1->element);
+unset($ps["className"]);
 $keys1 = array_keys($ps);
 //show(print_r($keys1, true));
 show(judgeEqual($keys1, $keys)?"equal":"not equal");
@@ -99,9 +101,8 @@ Array
     [1] => objects
     [2] => customRides
     [3] => element
-    [4] => className
-    [5] => someStr2
-    [6] => someStr
+    [4] => someStr2
+    [5] => someStr
 )
 
 Array
@@ -110,9 +111,8 @@ Array
     [1] => objects
     [2] => customRides
     [3] => element
-    [4] => className
-    [5] => someStr2
-    [6] => someStr
+    [4] => someStr2
+    [5] => someStr
 )
 
 equal
@@ -131,9 +131,8 @@ Array
     [3] => element
     [4] => prot
     [5] => priv
-    [6] => className
-    [7] => someStr2
-    [8] => someStr
+    [6] => someStr2
+    [7] => someStr
 )
 
 equal
