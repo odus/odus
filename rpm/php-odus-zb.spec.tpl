@@ -59,8 +59,8 @@ odus means On Demand Unserialization & Serialization. It is used to do lazy unse
 ; Enable odus extension module
 extension=odus.so
 odus.remove_default=0
-odus.reduce_fatals=0
-odus.throw_exceptions=0
+odus.reduce_fatals=1
+odus.throw_exceptions=1
 odus.format_version=2
 odus.force_release_memory=0
 odus.static_strings_file=/var/www/releases/current/game/odus/static_strings.ini
