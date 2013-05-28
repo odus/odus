@@ -66,7 +66,7 @@ inline static int od_igbinary_unserialize_object_ser(od_igbinary_unserialize_dat
 inline static void adjust_len_info(od_igbinary_serialize_data *igsd, uint32_t n, uint32_t new_n, uint old_len_bytes, uint new_len_bytes, uint32_t old_len_pos);
 
 inline static void od_igbinary_trim_string(char *str) {
-	uint32_t i;
+	int i;
 	uint32_t str_len = strlen(str);
 
 	for (i = str_len - 1; i >= 0; i--) {

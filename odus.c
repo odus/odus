@@ -741,23 +741,36 @@ PHP_FUNCTION(od_format_match)
 		RETURN_BOOL(0);
 	}
 
-	int i;
+	int i, j;
+	bool match;
 
 	uint8_t val;
 
-	ulong version = OD_IGBINARY_FORMAT_HEADER;
+	ulong versions[] = {
+		OD_IGBINARY_FORMAT_FLAG | OD_IGBINARY_FORMAT_VERSION_01,
+		OD_IGBINARY_FORMAT_FLAG | OD_IGBINARY_FORMAT_VERSION_02,
+	};
 
-	for(i=OD_IGBINARY_VERSION_BYTES-1;i>=0;i--) {
-		val = (version & 0xFF);
+	for (j = 0; j < sizeof(versions) / sizeof(ulong); j ++) {
+		ulong version = versions[j];
 
-		if(val != (uint8_t)str[i]) {
-			RETURN_BOOL(0);
+		match = true;
+		for(i=OD_IGBINARY_VERSION_BYTES-1;i>=0;i--) {
+			val = (version & 0xFF);
+
+			if(val != (uint8_t)str[i]) {
+				match = false;
+				break;
+			}
+
+			version>>=8;
 		}
-
-		version>>=8;
+		if (match) {
+			RETURN_BOOL(1);
+		}
 	}
 
-	RETURN_BOOL(1);
+	RETURN_BOOL(0);
 }
 
 PHP_FUNCTION(od_refresh_odwrapper)
