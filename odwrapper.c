@@ -534,8 +534,6 @@ HashTable* od_wrapper_get_properties(zval *object TSRMLS_DC)
 					} else if (OD_IS_NEW(*bkt) && bkt->data != NULL) {
 						((zval*)(bkt->data))->refcount ++;
 						zend_hash_update(od_obj->zo.properties, (char*)bkt->key, bkt->key_len + 1, (zval**)(&bkt->data), sizeof(zval*), NULL);
-					} else {
-						debug("in od_wrapper_get_properties: unexpect flag: 0x%x", bkt->flag);
 					}
 				}
 			}
