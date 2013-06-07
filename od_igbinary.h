@@ -226,7 +226,7 @@ inline int od_igbinary_serialize_string_table(od_igbinary_serialize_data *igsd T
 
 inline int od_igbinary_clone_string_table(od_igbinary_serialize_data *igsd, od_igbinary_unserialize_data *orig TSRMLS_DC);
 
-inline int od_igbinary_serialize_update_string_table(od_igbinary_serialize_data *igsd, od_igbinary_unserialize_data *orig, int32_t delta TSRMLS_DC);
+inline int od_igbinary_serialize_update_string_table(od_igbinary_serialize_data *igsd, od_igbinary_unserialize_data *orig TSRMLS_DC);
 
 int od_igbinary_serialize_zval(od_igbinary_serialize_data *igsd, zval *z TSRMLS_DC);
 

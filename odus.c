@@ -314,12 +314,11 @@ void apply_sleep_array(od_wrapper_object* od_obj, HashTable* h) {
 	}
 }
 
-void deal_with_new_properties(od_wrapper_object* od_obj, od_igbinary_serialize_data* igsd, od_igbinary_unserialize_data* local_igsd, uint8_t has_sleep, int32_t *len_diff) {
+void deal_with_new_properties(od_wrapper_object* od_obj, od_igbinary_serialize_data* igsd, od_igbinary_unserialize_data* local_igsd, uint8_t has_sleep) {
 
 	uint32_t i;
 	ODHashTable* ht = od_obj->od_properties;
 	ODBucket* bkt = NULL;
-	int32_t total_len_diff = 0;
 
 	for(i=0;i<ht->size;i++) {
 		bkt=ht->buckets+i;
@@ -342,13 +341,11 @@ void deal_with_new_properties(od_wrapper_object* od_obj, od_igbinary_serialize_d
 
 			zval *z = (zval*)bkt->data;
 			normal_od_wrapper_serialize(igsd, (zval*)bkt->data,0);
-			total_len_diff += igsd->buffer_size - start_pos;
 		}
 	}
-	*len_diff = total_len_diff;
 }
 
-void deal_with_modified_properties(od_wrapper_object* od_obj, od_igbinary_serialize_data* igsd, od_igbinary_unserialize_data* local_igsd, uint8_t has_sleep, int32_t *len_diff) {
+void deal_with_modified_properties(od_wrapper_object* od_obj, od_igbinary_serialize_data* igsd, od_igbinary_unserialize_data* local_igsd, uint8_t has_sleep) {
 
 	uint32_t i;
 	ODHashTable* ht = od_obj->od_properties;
@@ -410,11 +407,9 @@ void deal_with_modified_properties(od_wrapper_object* od_obj, od_igbinary_serial
 			}
 
 			//now serialize these modified properties
-			int32_t total_len_diff = 0;
 			for(i=0;i<modified_num;i++) {
 				if(pos_info[i].data==NULL) {
 					od_igbinary_serialize_memcpy(igsd, OD_LOCAL_OFFSET_POS(*local_igsd), pos_info[i].key_start_offset - local_igsd->buffer_offset);
-					total_len_diff += 0 - (pos_info[i].val_end_offset - pos_info[i].key_start_offset);
 				} else {
 
 					od_igbinary_serialize_memcpy(igsd, OD_LOCAL_OFFSET_POS(*local_igsd), pos_info[i].val_start_offset - local_igsd->buffer_offset);
@@ -429,12 +424,10 @@ void deal_with_modified_properties(od_wrapper_object* od_obj, od_igbinary_serial
 					normal_od_wrapper_serialize(igsd,pos_info[i].data,0);
 
 					int32_t value_len = igsd->buffer_size - value_start;
-					total_len_diff += value_len - (pos_info[i].val_end_offset - pos_info[i].val_start_offset);
 				}
 
 				local_igsd->buffer_offset = pos_info[i].val_end_offset;
 			}
-			*len_diff = total_len_diff;
 
 			efree(pos_info);
 			pos_info = NULL;
@@ -473,7 +466,6 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ui
 
 		uint8_t modified = 0;
 		int num_diff = 0;
-		int32_t total_len_diff = 0;
 
 		struct hash_si visited_od_wrappers;
 
@@ -577,16 +569,11 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ui
 
 				debug("deal with modified properties for class %s",OD_CLASS_NAME(od_obj));
 
-				int32_t len_diff = 0;
-				total_len_diff = 0;
-
-				deal_with_modified_properties(od_obj, igsd, &local_igsd, has_sleep, &len_diff);
-				total_len_diff += len_diff;
+				deal_with_modified_properties(od_obj, igsd, &local_igsd, has_sleep);
 
 				debug("deal with new properties for class %s",OD_CLASS_NAME(od_obj));
 
-				deal_with_new_properties(od_obj, igsd, &local_igsd, has_sleep, &len_diff);
-				total_len_diff += len_diff;
+				deal_with_new_properties(od_obj, igsd, &local_igsd, has_sleep);
 
 				//modify value len
 				od_igbinary_serialize_value_len(igsd, igsd->buffer_size - g_len_info_pos - OD_IGBINARY_VALUE_LEN_SIZE, g_len_info_pos);	
@@ -594,7 +581,7 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ui
 		} while (0);
 
 		if (is_root && igsd->compact_strings) {
-			od_igbinary_serialize_update_string_table(igsd, &local_igsd, total_len_diff TSRMLS_CC);
+			od_igbinary_serialize_update_string_table(igsd, &local_igsd TSRMLS_CC);
 		}
 	}
 }
