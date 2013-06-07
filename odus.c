@@ -782,6 +782,12 @@ PHP_FUNCTION(od_refresh_odwrapper)
 	od_wrapper_object* replace_od_obj = (od_wrapper_object*)replace_zobj;
 	od_igbinary_unserialize_data* replace_igsd = &(replace_od_obj->igsd);
 
+	// Check the version.
+	if (memcmp(refresh_igsd->original_buffer, replace_igsd->original_buffer, OD_IGBINARY_VERSION_BYTES) != 0) {
+		debug("od_refresh_odwrapper: version doesn't match, do nothing.");
+		RETURN_BOOL(0);
+	}
+
 	refresh_igsd->buffer = replace_igsd->buffer;
 	refresh_igsd->buffer_size = replace_igsd->buffer_size;
 	refresh_igsd->buffer_offset = replace_igsd->buffer_offset;
