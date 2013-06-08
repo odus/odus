@@ -1557,7 +1557,7 @@ int search_property(od_wrapper_object* od_obj,zend_property_info *property_info,
 		search_member(od_obj,property_info->name, property_info->name_length, OD_HASH_VALUE(property_info->h), ret_bkt, NULL);
 	}
 
-	if(ret_bkt && !(*ret_bkt)) {
+	if(property_info && ret_bkt && !(*ret_bkt)) {
 
 		debug("will search in default properties for member '%s' with len '%d' hash: %u, od hash: %u",property_info->name,property_info->name_length,property_info->h,OD_HASH_VALUE(property_info->h));
 
