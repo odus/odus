@@ -996,6 +996,10 @@ inline static int od_igbinary_serialize_array_ref(od_igbinary_serialize_data *ig
 			return 1;
 		}
 
+		if (object && Z_TYPE_P(z) == IS_OBJECT) {
+			debug("in od_igbinary_serialize_array_ref refered class %s", key.obj.ce->name);
+		}
+
 		// Depending on what behavior you want out of the extension you can enable this 
 		// in /etc/php.d/odus.ini ( set odus.throw_exceptions=1 )
 		if(ODUS_G(od_throw_exceptions)) {
