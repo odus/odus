@@ -933,7 +933,7 @@ inline int od_igbinary_clone_string_table(od_igbinary_serialize_data *igsd, od_i
 
 /* {{{ od_igbinary_serialize_update_string_table */
 /** Update offset for the string table. */
-inline int od_igbinary_serialize_update_string_table(od_igbinary_serialize_data *igsd, od_igbinary_unserialize_data *orig, int32_t delta TSRMLS_DC) {
+inline int od_igbinary_serialize_update_string_table(od_igbinary_serialize_data *igsd, od_igbinary_unserialize_data *orig TSRMLS_DC) {
 	int32_t string_table_start = 0;
 	int32_t index_offset = 0;
 	uint32_t original_strings_count = 0;
@@ -947,10 +947,14 @@ inline int od_igbinary_serialize_update_string_table(od_igbinary_serialize_data 
 	if (igsd->string_table_update) {
 		od_igbinary_serialize_string_table(igsd TSRMLS_CC);
 	} else {
-		// Only update the offset.
-		od_igbinary_serialize_memcpy(igsd, orig->buffer + string_table_start, index_offset + original_strings_count * 4 - string_table_start);
-		od_igbinary_serialize32_at(igsd, (uint32_t)(string_table_start + delta), OD_IGBINARY_STRING_TABLE_START_OFFSET	TSRMLS_CC);
-		od_igbinary_serialize32_at(igsd, (uint32_t)(index_offset + delta), OD_IGBINARY_STRING_TABLE_INDEX_OFFSET	TSRMLS_CC);
+		/* Only update the offset. */
+		// Strings
+		od_igbinary_serialize32_at(igsd, igsd->buffer_size, OD_IGBINARY_STRING_TABLE_START_OFFSET	TSRMLS_CC);
+		od_igbinary_serialize_memcpy(igsd, orig->buffer + string_table_start, index_offset - string_table_start);
+
+		// Indexes
+		od_igbinary_serialize32_at(igsd, igsd->buffer_size, OD_IGBINARY_STRING_TABLE_INDEX_OFFSET	TSRMLS_CC);
+		od_igbinary_serialize_memcpy(igsd, orig->buffer + index_offset, original_strings_count * 4);
 	}
 
 	orig->buffer = buffer_backup;
@@ -990,6 +994,10 @@ inline static int od_igbinary_serialize_array_ref(od_igbinary_serialize_data *ig
 			//XXX
 			// no referred array is valid in odus
 			return 1;
+		}
+
+		if (object && Z_TYPE_P(z) == IS_OBJECT) {
+			debug("in od_igbinary_serialize_array_ref refered class %s", key.obj.ce->name);
 		}
 
 		// Depending on what behavior you want out of the extension you can enable this 
