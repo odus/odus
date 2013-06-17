@@ -37,6 +37,7 @@ PHP_FUNCTION(od_refresh_odwrapper);
 PHP_FUNCTION(od_getobjectkeys_without_key);
 PHP_FUNCTION(od_release_memory);
 PHP_FUNCTION(od_reserialize);
+PHP_FUNCTION(od_is_wrapper);
 
 /** Binary protocol version of igbinary. */
 #define OD_IGBINARY_FORMAT_FLAG				0x4F440000		// ASCII "OD"
