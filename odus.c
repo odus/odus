@@ -44,6 +44,7 @@ zend_function_entry odus_functions[] = {
 	PHP_FE(od_getobjectkeys_without_key, NULL)
 	PHP_FE(od_release_memory, NULL)
 	PHP_FE(od_reserialize, NULL)
+	PHP_FE(od_is_wrapper,	NULL)
 	{NULL, NULL, NULL}	/* Must be the last line in odus_functions[] */
 };
 /* }}} */
@@ -713,6 +714,20 @@ PHP_FUNCTION(od_format_version)
 	Z_TYPE_P(return_value) = IS_STRING;
 	Z_STRVAL_P(return_value) = estrndup(version, len);
 	Z_STRLEN_P(return_value) = len;
+}
+
+PHP_FUNCTION(od_is_wrapper)
+{
+	zval* z = NULL;
+
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z",&z)) {
+		RETURN_BOOL(0);
+	}
+	if(IS_OD_WRAPPER(z)) {
+		RETURN_BOOL(1);
+	} else {
+		RETURN_BOOL(0);
+	}
 }
 
 PHP_FUNCTION(od_format_match)
