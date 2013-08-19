@@ -42,6 +42,7 @@ zend_function_entry odus_functions[] = {
 	PHP_FE(od_overwrite_function,	NULL)
 	PHP_FE(od_refresh_odwrapper,	NULL)
 	PHP_FE(od_getobjectkeys_without_key, NULL)
+	PHP_FE(od_get_mangled_name, NULL)
 	PHP_FE(od_release_memory, NULL)
 	PHP_FE(od_reserialize, NULL)
 	PHP_FE(od_is_wrapper,	NULL)
@@ -927,6 +928,98 @@ PHP_FUNCTION(od_getobjectkeys_without_key)
 
 	zend_hash_destroy(htable);
 	FREE_HASHTABLE(htable);
+}
+
+PHP_FUNCTION(od_get_mangled_name)
+{
+	zval* obj = NULL;
+	char *name = NULL;
+	int name_len;
+
+	if (FAILURE == zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z|s", &obj, &name, &name_len)) {
+		RETURN_NULL();
+	}
+
+	if(obj == NULL || Z_TYPE_P(obj) != IS_OBJECT) {
+		RETURN_NULL();
+	}
+
+	if(IS_OD_WRAPPER(obj)) {
+		od_error(E_ERROR, "od_get_mangled_name: work for non-odwrapper only for now");
+		RETURN_NULL();
+	}
+
+	Z_TYPE_P(return_value) = IS_STRING;
+	Z_STRVAL_P(return_value) = NULL;
+	Z_STRLEN_P(return_value) = 0;
+
+	zend_class_entry *ce = Z_OBJCE_P(obj);
+
+	zval *v = NULL;
+	HashTable *h = Z_OBJPROP_P(obj);
+	char *low_level_name = name;
+	int low_level_name_len = name_len;
+
+	do {
+		ulong hash = zend_get_hash_value(name, name_len + 1);
+		if (zend_hash_quick_find(h, name, name_len + 1, hash, (void *) &v) == SUCCESS) {
+			low_level_name = name;
+			low_level_name_len = name_len;
+		} else if (ce) {
+			/* try private */
+			char *priv_name = NULL;
+			int priv_name_length = 0;
+
+			zend_mangle_property_name(&priv_name, &priv_name_length, ce->name, ce->name_length,
+						name, name_len, ce->type & ZEND_INTERNAL_CLASS);
+			hash = zend_get_hash_value(priv_name, priv_name_length + 1);
+			if (zend_hash_quick_find(h, priv_name, priv_name_length + 1, hash, (void *) &v) == SUCCESS) {
+				low_level_name = priv_name;
+				low_level_name_len = priv_name_length;
+			} else {
+				char *prot_name = NULL;
+				int prot_name_length = 0;
+				/* try protected */
+				zend_mangle_property_name(&prot_name, &prot_name_length, "*", 1,
+							name, name_len, ce->type & ZEND_INTERNAL_CLASS);
+				hash = zend_get_hash_value(prot_name, prot_name_length + 1);
+				if (zend_hash_quick_find(h, prot_name, prot_name_length + 1, hash, (void *) &v) == SUCCESS) {
+					low_level_name = prot_name;
+					low_level_name_len = prot_name_length;
+				}
+			}
+		}
+
+		// At most two '\0' encoded inside;
+		char *mangled_name = emalloc(sizeof(char) * (low_level_name_len + 3));
+
+		if (!mangled_name) {
+			od_error(E_ERROR, "od_get_mangled_name: failed to allocate memory!");
+			break;
+		}
+
+		char *p = low_level_name;
+		char *q = mangled_name;
+		while(low_level_name_len > 0) {
+			if (*p == '\0') {
+				*q++ = '\\';
+				*q++ = '0';
+			} else {
+				*q++ = *p;
+			}
+			*p++;
+			low_level_name_len--;
+		}
+		*q = '\0';
+
+		Z_STRVAL_P(return_value) = mangled_name;
+		Z_STRLEN_P(return_value) = strlen(mangled_name);
+	} while (0);
+
+	if (low_level_name != name) {
+		efree(low_level_name);
+	}
+	return;
 }
 
 PHP_FUNCTION(od_release_memory)

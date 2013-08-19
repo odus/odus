@@ -35,6 +35,7 @@ PHP_FUNCTION(od_format_match);
 PHP_FUNCTION(od_overwrite_function);
 PHP_FUNCTION(od_refresh_odwrapper);
 PHP_FUNCTION(od_getobjectkeys_without_key);
+PHP_FUNCTION(od_get_mangled_name);
 PHP_FUNCTION(od_release_memory);
 PHP_FUNCTION(od_reserialize);
 PHP_FUNCTION(od_is_wrapper);
