@@ -23,7 +23,12 @@ ZEND_EXTERN_MODULE_GLOBALS(odus);
 static struct hash_si od_static_strings_hash;	// For serialize
 static int od_static_strings_count = 0;
 
-static char** od_static_strings;
+typedef struct {
+	char *key;
+	int len;
+} static_string_entry;
+
+static static_string_entry *od_static_strings;
 
 static char* EMPTY_STRING="";
 
@@ -92,6 +97,30 @@ inline static void od_igbinary_trim_string(char *str) {
 	}
 }
 
+/* Parse escape chars, currently '\0' only, to support protected/private property. They
+ have '\0' inside after name mangling. */
+inline int parse_escape_chars(char *key, int *len) {
+	int key_len = strlen(key);
+	char *p = key;
+	char *q = key;
+
+	while(*p) {
+		if (*p == '\\') {
+			if (*(p + 1) == '0') {
+				*q = '\0';
+				++p;
+				key_len--;
+			}
+		} else {
+			*q = *p;
+		}
+		p++;
+		q++;
+	}
+
+	*len = key_len;
+}
+
 inline int od_igbinary_init(TSRMLS_D) {
 	char buf[1024];	/* Assume no string contains more than 1024 chars */
 	int buf_len = sizeof(buf) / sizeof(char);
@@ -124,9 +153,9 @@ inline int od_igbinary_init(TSRMLS_D) {
 			}
 		}
 
-	   	od_static_strings = (char**)pemalloc(sizeof(char*) * od_static_strings_count, 1);
+		od_static_strings = (static_string_entry*)pemalloc(sizeof(static_string_entry) * od_static_strings_count, 1);
 
-	   	memset(od_static_strings, 0, sizeof(char*) * od_static_strings_count);
+		memset(od_static_strings, 0, sizeof(static_string_entry) * od_static_strings_count);
 
 	   	if (!od_static_strings) {
 	   		od_error(E_ERROR, "od_igbinary_init: Failed to alloc memory");
@@ -141,9 +170,10 @@ inline int od_igbinary_init(TSRMLS_D) {
 			od_igbinary_trim_string(buf);
 
 			if (buf[0] != OD_IGBINARY_STATIC_STRING_COMMENT_CHAR && strlen(buf) > 0 ) {
-				od_static_strings[i] = pestrdup(buf, 1);
+				od_static_strings[i].key = pestrdup(buf, 1);
+				parse_escape_chars(od_static_strings[i].key, &(od_static_strings[i].len));
 
-				if (!od_static_strings[i]) {
+				if (!od_static_strings[i].key) {
 					od_error(E_ERROR, "od_igbinary_init: Failed to alloc memory for a string");
 					res = -1;
 					break;
@@ -160,11 +190,8 @@ inline int od_igbinary_init(TSRMLS_D) {
 
 	hash_si_init(&od_static_strings_hash, 16);
 	if (res == 0) {
-		int len;
 		for (i = 0; i < od_static_strings_count; i++) {
-			len = strlen(od_static_strings[i]);
-
-			hash_si_insert(&od_static_strings_hash, od_static_strings[i], len, i);
+			hash_si_insert(&od_static_strings_hash, od_static_strings[i].key, od_static_strings[i].len, i);
 		}
 	}
 
@@ -178,8 +205,8 @@ inline int od_igbinary_shutdown(TSRMLS_D) {
 
 	if (od_static_strings) {
 		for (i = 0; i < od_static_strings_count; i++) {
-			if (od_static_strings[i]) {
-				pefree(od_static_strings[i], 1);
+			if (od_static_strings[i].key) {
+				pefree(od_static_strings[i].key, 1);
 			}
 		}
 		pefree(od_static_strings, 1);
@@ -1839,8 +1866,8 @@ inline int od_igbinary_unserialize_static_string(od_igbinary_unserialize_data *i
 		return 1;
 	}
 
-	*s = od_static_strings[i];
-	*len = strlen(od_static_strings[i]);
+	*s = od_static_strings[i].key;
+	*len = od_static_strings[i].len;
 
 	return 0;
 }
