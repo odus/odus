@@ -117,6 +117,7 @@ inline int parse_escape_chars(char *key, int *len) {
 		p++;
 		q++;
 	}
+	*q = '\0';
 
 	*len = key_len;
 }
