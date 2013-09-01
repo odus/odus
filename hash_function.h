@@ -1,10 +1,7 @@
 /*
-  +----------------------------------------------------------------------+
-  | See COPYING file for further copyright information                   |
-  +----------------------------------------------------------------------+ 
-  | Author: Oleg Grenrus <oleg.grenrus@dynamoid.com>                     |
-  | See CREDITS for contributors                                         |
-  +----------------------------------------------------------------------+ 
+-------------------------------------------------------------------------------
+Adapted header file for lookup3.c (hash_function.c for this project) by Bob Jenkins
+-------------------------------------------------------------------------------
 */
 
 #ifndef HASH_FUNCTION_H
@@ -20,7 +17,7 @@
  * @param initval hash init val
  * @return hash value of key
  * @see http://burtleburtle.net/bob/hash/index.html
- * @author Bob Jerkins <bob_jenkins@burtleburtle.net>
+ * @author Bob Jenkins <bob_jenkins@burtleburtle.net>
  */
 uint32_t hash_function(const void *key, uint32_t length, uint32_t initval);
 

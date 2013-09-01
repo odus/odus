@@ -1,1 +1,44 @@
-odus
+ODUS
+=========
+
+ODUS is written for CityVille by Zynga, Inc. and its employees.
+
+Author
+* XiaoLong Ma <> (Author of 1.0, Resigned after 1.0.9)
+* Pai Deng <pdeng@zynga.com> (Author of 2.0)
+
+Contributors
+* Steven Chow <schow@zynga.com>
+* Sahn Lam <sahn@zynga.com>
+* Xiaogang Duan <xduan@zynga.com>
+* Huiqiang Liu <h.liu@zynga.com>
+
+Other
+* Hash functions - Bob Jenkins <bob_jenkins@burtleburtle.net>
+
+---
+
+http://zynga.com - Connecting the World Through Games
+
+
+
+
+Igbinary
+========
+igbinary is written for IRC-Galleria by Sulake Dynamoid Oy and its employees.
+
+Author
+* Oleg Grenrus <oleg.grenrus@dynamoid.com>
+
+Contributors
+* Teddy Grenman <tricky.github@luuseri.com> (fixes, tests, docs)
+* Kari Lavikka <kari.lavikka@sulake.com> (docs)
+* Pierre Joye (Windows support)
+* Mikko Koppanen (PECL and RPM spec files)
+
+Other
+* Hash functions - Bob Jenkins <bob_jenkins@burtleburtle.net>
+
+---
+
+http://irc-galleria.net/ - a finnish social networking site

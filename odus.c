@@ -1,3 +1,11 @@
+/*
+  +----------------------------------------------------------------------+
+  | See COPYING file for further copyright information                   |
+  +----------------------------------------------------------------------+
+  | Author: Pai Deng <pdeng@zynga.com>                                   |
+  | See CREDITS for contributors                                         |
+  +----------------------------------------------------------------------+
+*/
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -59,8 +67,8 @@ zend_module_entry odus_module_entry = {
 	odus_functions,
 	PHP_MINIT(odus),
 	PHP_MSHUTDOWN(odus),
-	PHP_RINIT(odus),		/* Replace with NULL if there's nothing to do at request start */
-	PHP_RSHUTDOWN(odus),	/* Replace with NULL if there's nothing to do at request end */
+	NULL,
+	NULL,
 	PHP_MINFO(odus),
 #if ZEND_MODULE_API_NO >= 20010901
 	"0.1", /* Replace with version number for your extension */
@@ -73,7 +81,7 @@ zend_module_entry odus_module_entry = {
 ZEND_GET_MODULE(odus)
 #endif
 
-void apply_sleep_array(od_wrapper_object* od_obj, HashTable* h);
+static void apply_sleep_array(od_wrapper_object* od_obj, HashTable* h);
 
 void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, uint8_t is_root);
 
@@ -103,8 +111,7 @@ PHP_INI_BEGIN()
     STD_PHP_INI_BOOLEAN("odus.remove_default",      "0",    PHP_INI_SYSTEM, OnUpdateBool,              remove_default,         zend_odus_globals, odus_globals)
     STD_PHP_INI_BOOLEAN("odus.throw_exceptions",      "0",    PHP_INI_SYSTEM, OnUpdateBool,              od_throw_exceptions,         zend_odus_globals, odus_globals)
     STD_PHP_INI_BOOLEAN("odus.reduce_fatals",      "0",    PHP_INI_SYSTEM, OnUpdateBool,              od_reduce_fatals,         zend_odus_globals, odus_globals)
-    /* Make odus.format_version as PHP_INI_USER to control it by experiment. Will move to PHP_INI_SYSTEM once it's robust. */
-    STD_PHP_INI_BOOLEAN("odus.format_version",    "2",    PHP_INI_USER, OnUpdateLong,              format_version,          zend_odus_globals, odus_globals)
+    STD_PHP_INI_BOOLEAN("odus.format_version",    "2",    PHP_INI_SYSTEM, OnUpdateLong,              format_version,          zend_odus_globals, odus_globals)
     STD_PHP_INI_BOOLEAN("odus.force_release_memory",      "0",    PHP_INI_SYSTEM, OnUpdateBool,              force_release_memory,         zend_odus_globals, odus_globals)
     STD_PHP_INI_BOOLEAN("odus.static_strings_file",    OD_IGBINARY_DEFAULT_STATIC_STRINGS_FILE,    PHP_INI_SYSTEM, OnUpdateString,              static_strings_file,          zend_odus_globals, odus_globals)
 PHP_INI_END()
@@ -115,20 +122,22 @@ zend_class_entry *odus_exception_ce;
  */
 PHP_MINIT_FUNCTION(odus)
 {
-    zend_class_entry ce;
+	zend_class_entry ce;
 
-    ZEND_INIT_MODULE_GLOBALS(odus, php_odus_init_globals, NULL);
+	ZEND_INIT_MODULE_GLOBALS(odus, php_odus_init_globals, NULL);
 
-    /* Odus exception class */
-    INIT_CLASS_ENTRY(ce, "OdusException", NULL);
-    odus_exception_ce = zend_register_internal_class_ex(&ce, zend_exception_get_default(TSRMLS_C), NULL TSRMLS_CC);
-    odus_exception_ce->ce_flags |= ZEND_ACC_FINAL;
+	/* Odus exception class */
+	INIT_CLASS_ENTRY(ce, "OdusException", NULL);
+	odus_exception_ce = zend_register_internal_class_ex(&ce, zend_exception_get_default(TSRMLS_C), NULL TSRMLS_CC);
+	odus_exception_ce->ce_flags |= ZEND_ACC_FINAL;
 
-    REGISTER_INI_ENTRIES();
+	REGISTER_INI_ENTRIES();
 
 	od_wrapper_init(TSRMLS_C);
 
-	od_igbinary_init(TSRMLS_C);
+	if (od_igbinary_init(TSRMLS_C) != 0) {
+		return FAILURE;
+	}
 
 	return SUCCESS;
 }
@@ -138,32 +147,12 @@ PHP_MINIT_FUNCTION(odus)
  */
 PHP_MSHUTDOWN_FUNCTION(odus)
 {
-	/* uncomment this line if you have INI entries
 	UNREGISTER_INI_ENTRIES();
-	*/
 
 	od_wrapper_shutdown(TSRMLS_C);
 
 	od_igbinary_shutdown(TSRMLS_C);
 
-	return SUCCESS;
-}
-/* }}} */
-
-/* Remove if there's nothing to do at request start */
-/* {{{ PHP_RINIT_FUNCTION
- */
-PHP_RINIT_FUNCTION(odus)
-{
-	return SUCCESS;
-}
-/* }}} */
-
-/* Remove if there's nothing to do at request end */
-/* {{{ PHP_RSHUTDOWN_FUNCTION
- */
-PHP_RSHUTDOWN_FUNCTION(odus)
-{
 	return SUCCESS;
 }
 /* }}} */
@@ -193,40 +182,15 @@ PHP_MINFO_FUNCTION(odus)
 	}
 	php_info_print_table_end();
 
-    DISPLAY_INI_ENTRIES();
+	DISPLAY_INI_ENTRIES();
 }
 /* }}} */
 
-void normal_php_serialize(smart_str* buf, zval* obj)
-{
-	if(buf==NULL || obj==NULL) return;
-
-	HashTable var_hash;
-
-	PHP_VAR_SERIALIZE_INIT(var_hash);
-	php_var_serialize(buf, &obj, &var_hash TSRMLS_CC);
-	PHP_VAR_SERIALIZE_DESTROY(var_hash);
+inline static void deal_with_unmodified_object(od_igbinary_serialize_data* igsd, od_wrapper_object* od_obj, uint8_t is_root) {
+	od_igbinary_serialize_memcpy(igsd,od_obj->igsd.buffer,od_obj->igsd.buffer_size);
 }
 
-inline void deal_with_unmodified_object(od_igbinary_serialize_data* igsd, od_wrapper_object* od_obj, uint8_t is_root)
-{
-	// if(is_root) {
-	// 	igsd->scalar = 1;
-	// 	igsd->objects.data = NULL;
-
-	// 	igsd->buffer_size = od_obj->igsd.buffer_size + OD_IGBINARY_VERSION_BYTES;
-	// 	igsd->buffer_capacity = igsd->buffer_size + 1;
-
-	// 	igsd->buffer = (uint8_t*)emalloc(igsd->buffer_capacity);
-
-	// 	memcpy(igsd->buffer, od_obj->igsd.buffer - OD_IGBINARY_VERSION_BYTES, igsd->buffer_size);
-	// 	igsd->buffer[igsd->buffer_size] = 0;
-	// } else {
-		od_igbinary_serialize_memcpy(igsd,od_obj->igsd.buffer,od_obj->igsd.buffer_size);
-	//}
-}
-
-uint8_t check_sleep(zval* obj, od_wrapper_object* od_obj) {
+static uint8_t check_sleep(zval* obj, od_wrapper_object* od_obj) {
 
 	uint8_t has_sleep = 0;
 
@@ -265,7 +229,7 @@ uint8_t check_sleep(zval* obj, od_wrapper_object* od_obj) {
 	return has_sleep;
 }
 
-void apply_sleep_array(od_wrapper_object* od_obj, HashTable* h) {
+static void apply_sleep_array(od_wrapper_object* od_obj, HashTable* h) {
 
 	if(!h || !od_obj) return;
 
@@ -315,7 +279,7 @@ void apply_sleep_array(od_wrapper_object* od_obj, HashTable* h) {
 	}
 }
 
-void deal_with_new_properties(od_wrapper_object* od_obj, od_igbinary_serialize_data* igsd, od_igbinary_unserialize_data* local_igsd, uint8_t has_sleep) {
+static void deal_with_new_properties(od_wrapper_object* od_obj, od_igbinary_serialize_data* igsd, od_igbinary_unserialize_data* local_igsd, uint8_t has_sleep) {
 
 	uint32_t i;
 	ODHashTable* ht = od_obj->od_properties;
@@ -346,7 +310,7 @@ void deal_with_new_properties(od_wrapper_object* od_obj, od_igbinary_serialize_d
 	}
 }
 
-void deal_with_modified_properties(od_wrapper_object* od_obj, od_igbinary_serialize_data* igsd, od_igbinary_unserialize_data* local_igsd, uint8_t has_sleep) {
+static void deal_with_modified_properties(od_wrapper_object* od_obj, od_igbinary_serialize_data* igsd, od_igbinary_unserialize_data* local_igsd, uint8_t has_sleep) {
 
 	uint32_t i;
 	ODHashTable* ht = od_obj->od_properties;
@@ -438,7 +402,7 @@ void deal_with_modified_properties(od_wrapper_object* od_obj, od_igbinary_serial
 	od_igbinary_serialize_memcpy(igsd, OD_LOCAL_OFFSET_POS(*local_igsd), local_igsd->buffer_size - local_igsd->buffer_offset);
 }
 
-void normal_complete_serialize(od_igbinary_serialize_data* igsd, zval* obj) {
+static void normal_complete_serialize(od_igbinary_serialize_data* igsd, zval* obj) {
 	if(obj->type == IS_ARRAY) {
 		od_igbinary_serialize_array(igsd,obj,NULL,0,0,1);
 	} else {
@@ -480,6 +444,8 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ui
 		do {
 			if (igsd->root_id != 0 && igsd->root_id != local_igsd.root_id) {
 				// obj comes from a different root object, do full serializing to avoid string table corrupt.
+				// eg. $user->currentEnv = $world->env, strings in $world->env refer to $world's string table,
+				// On serializing $user we must convert them to refer to $user's string table, by full serializing,
 				normal_complete_serialize(igsd, obj);
 				break;
 			}
@@ -588,7 +554,7 @@ void normal_od_wrapper_serialize(od_igbinary_serialize_data* igsd, zval* obj, ui
 }
 
 /* Return true if migration is needed, false otherwise. */
-bool check_need_migration(od_igbinary_serialize_data* igsd, zval* obj) {
+static bool check_need_migration(zval* obj) {
 	uint32_t format_version = (uint32_t)ODUS_G(format_version);
 	uint32_t header = -1;
 
@@ -600,13 +566,10 @@ bool check_need_migration(od_igbinary_serialize_data* igsd, zval* obj) {
 	od_wrapper_object* od_obj = (od_wrapper_object*)zend_object_store_get_object(obj);
 	od_igbinary_unserialize_data local_igsd = od_obj->igsd;
 
-	uint8_t *buffer_backup = local_igsd.buffer;
 	local_igsd.buffer = local_igsd.original_buffer;
 	local_igsd.buffer_offset = 0;
 
 	od_igbinary_unserialize_header(&local_igsd, &header TSRMLS_CC);
-	local_igsd.buffer = buffer_backup;
-	local_igsd.buffer_offset = 0;
 
 	if ((header & OD_IGBINARY_FORMAT_VERSION_MASK) != format_version) {
 		return true;
@@ -614,12 +577,7 @@ bool check_need_migration(od_igbinary_serialize_data* igsd, zval* obj) {
 	return false;
 }
 
-/* Remove the following function when you have succesfully modified config.m4
-   so that your module can be compiled into PHP, it exists only for testing
-   purposes. */
-
-/* Every user-visible function in PHP should document itself in the source */
-/* {{{ proto string od_serialize(object ODWrapper, persistent=0)
+/* {{{ proto string od_serialize(object ODWrapper)
    serialize method only for ODWrapper */
 PHP_FUNCTION(od_serialize)
 {
@@ -646,7 +604,7 @@ PHP_FUNCTION(od_serialize)
 		RETURN_NULL();
 	}
 
-	if(IS_OD_WRAPPER(z) && !check_need_migration(&igsd, z)) {
+	if(IS_OD_WRAPPER(z) && !check_need_migration(z)) {
 		debug("in od_serialize => file: %s function: %s line: %d",OD_FILE,OD_FUNCTION,OD_LINE);
 
 		normal_od_wrapper_serialize(&igsd,z,1);

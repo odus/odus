@@ -1,6 +1,11 @@
 /*
- *
- */
+  +----------------------------------------------------------------------+
+  | See COPYING file for further copyright information                   |
+  +----------------------------------------------------------------------+
+  | Author: Pai Deng <pdeng@zynga.com>                                   |
+  | See CREDITS for contributors                                         |
+  +----------------------------------------------------------------------+
+*/
 
 #include "php_odus.h"
 #include "odwrapper.h"
@@ -11,14 +16,6 @@
 #include "zend_llist.h"
 
 ZEND_EXTERN_MODULE_GLOBALS(odus);
-
-void debug_igsd(od_igbinary_unserialize_data* igsd) {
-	debug_buffer(igsd->buffer, igsd->buffer_size, igsd->buffer_offset);
-}
-
-void debug_igsd_info(od_igbinary_unserialize_data* igsd) {
-	debug("buffer: %p size: %d offset: %d",igsd->buffer, igsd->buffer_size, igsd->buffer_offset);
-}
 
 ODUS_ARGINFO_STATIC
 ZEND_BEGIN_ARG_INFO_EX(arginfo_ctor, 0, 0, 2)
@@ -115,7 +112,7 @@ static inline void od_wrapper_call_unsetter(zval *object, zval *member TSRMLS_DC
 
 static int od_get_property_guard(zend_object *zobj, zend_property_info *property_info, zval *member, zend_guard **pguard);
 
-// Hookers Definition
+// Functions for ODWrapper Object
 
 static void od_wrapper_object_clone(void *object, void **clone_ptr TSRMLS_DC);
 static void od_wrapper_object_dtor(void *object, zend_object_handle handle TSRMLS_DC);
@@ -290,7 +287,7 @@ void init_od_wrapper(zval *object, od_igbinary_unserialize_data* parent_igsd, ui
 		return;
 	}
 
-	debug("initial odwrapper for class %s",class_name);
+	debug("initialize odwrapper for class %s", class_name);
 
 	od_wrapper_object* od_obj = (od_wrapper_object*)zend_object_store_get_object(object TSRMLS_CC);
 
@@ -461,8 +458,6 @@ int od_get_property_guard(zend_object *zobj, zend_property_info *property_info, 
 	return zend_hash_quick_add(zobj->guards, property_info->name, property_info->name_length+1, property_info->h, (void**)&stub, sizeof(stub), (void**) pguard);
 }
 
-// Hookers Implementation
-
 void od_wrapper_object_clone(void *object, void **clone_ptr TSRMLS_DC)
 {
 	od_error(E_ERROR,"you should not call function %s",__FUNCTION__);
@@ -543,8 +538,6 @@ HashTable* od_wrapper_get_properties(zval *object TSRMLS_DC)
 	}
 
 	OD_HASH_LAZY_INIT(od_obj->zo.properties);
-
-	debug("@@@ DANGOURS!!!!!!!! in od_wrapper_get_properties for class '%s'",OD_CLASS_NAME(od_obj));
 
 	if(!od_obj->od_properties) od_wrapper_lazy_init(object,od_obj);
 

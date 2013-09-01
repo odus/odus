@@ -1,3 +1,12 @@
+/*
+  +----------------------------------------------------------------------+
+  | See COPYING file for further copyright information                   |
+  +----------------------------------------------------------------------+
+  | Author: Pai Deng <pdeng@zynga.com>                                   |
+  | See CREDITS for contributors                                         |
+  +----------------------------------------------------------------------+
+*/
+
 #ifndef _OD_IGBINARY_H_
 #define _OD_IGBINARY_H_
 

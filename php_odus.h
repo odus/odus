@@ -1,3 +1,11 @@
+/*
+  +----------------------------------------------------------------------+
+  | See COPYING file for further copyright information                   |
+  +----------------------------------------------------------------------+
+  | Author: Pai Deng <pdeng@zynga.com>                                   |
+  | See CREDITS for contributors                                         |
+  +----------------------------------------------------------------------+
+*/
 
 #ifndef PHP_ODUS_H
 #define PHP_ODUS_H
