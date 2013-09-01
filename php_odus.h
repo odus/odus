@@ -58,7 +58,7 @@ PHP_FUNCTION(od_is_wrapper);
 
 #define OD_IGBINARY_VERSION_BYTES  4
 
-#define OD_VERSION "2.0.3"
+#define OD_VERSION "2.0.4"
 
 ZEND_BEGIN_MODULE_GLOBALS(odus)
 	zend_bool remove_default;
