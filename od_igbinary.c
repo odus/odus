@@ -103,21 +103,30 @@ inline int od_igbinary_init(TSRMLS_D) {
 	int res = 0;
 
 	do {
-		od_static_strings_count = 0;
-
-		if (!file || !file[0]) {
-			debug("od_igbinary_init: static strings file is empty, use default one.");
-			file = OD_IGBINARY_DEFAULT_STATIC_STRINGS_FILE;
-		}
-
-		fp = fopen(file, "r");
-
-		if (!fp) {
-			debug("od_igbinary_init: failed to open static string file, ignore.");
+		if (hash_si_init(&od_static_strings_hash, 16) != 0) {
 			res = -1;
 			break;
 		}
 
+		if (file && file[0]) {
+			fp = fopen(file, "r");
+			if (!fp) {
+				debug("od_igbinary_init: failed to open configed static string file, exit.");
+				res = -1;
+				break;
+			}
+		} else {
+			debug("od_igbinary_init: no config for static strings file, try with default one.");
+			file = OD_IGBINARY_DEFAULT_STATIC_STRINGS_FILE;
+			fp = fopen(file, "r");
+			if (!fp) {
+				debug("od_igbinary_init: failed to open default static string file, just ignore. ODUS will work with an empty static string table.");
+				res = 0;
+				break;
+			}
+		}
+
+		od_static_strings_count = 0;
 		while (fgets(buf, buf_len, fp) != NULL) {
 			od_igbinary_trim_string(buf);
 
@@ -153,28 +162,24 @@ inline int od_igbinary_init(TSRMLS_D) {
 				i++;
 			}
 		}
+		if (res != 0) break;
+
+		for (i = 0; i < od_static_strings_count; i++) {
+			int len = strlen(od_static_strings[i]);
+
+			if (hash_si_insert(&od_static_strings_hash, od_static_strings[i], len, i) != 0) {
+				res = -1;
+				break;
+			}
+		}
 	} while (0);
-	
 
 	if (fp) {
 		fclose (fp);
 	}
 
-	if (hash_si_init(&od_static_strings_hash, 16) != 0) {
-		res = -1;
-	}
-
-	if (res == 0) {
-		int len;
-		for (i = 0; i < od_static_strings_count; i++) {
-			len = strlen(od_static_strings[i]);
-
-			if (hash_si_insert(&od_static_strings_hash, od_static_strings[i], len, i) != 0) {
-				hash_si_deinit(&od_static_strings_hash);
-				res = -1;
-				break;
-			}
-		}
+	if (res != 0) {
+		hash_si_deinit(&od_static_strings_hash);
 	}
 
 	return res;
