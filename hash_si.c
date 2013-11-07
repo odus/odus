@@ -2,7 +2,8 @@
   +----------------------------------------------------------------------+
   | See COPYING file for further copyright information                   |
   +----------------------------------------------------------------------+ 
-  | Author: Oleg Grenrus <oleg.grenrus@dynamoid.com>                     |
+  | Derived/Modified based on hash_si.c in igbinary code base.           |
+  | Original author: Oleg Grenrus <oleg.grenrus@dynamoid.com>            |
   | See CREDITS for contributors                                         |
   +----------------------------------------------------------------------+ 
 */
@@ -61,6 +62,7 @@ void hash_si_deinit(struct hash_si *h) {
 
 	free(h->data);
 
+	h->data = NULL;		// Defense against deinit twice.
 	h->size = 0;
 	h->used = 0;
 }

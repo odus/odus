@@ -1,0 +1,127 @@
+ODUS
+========
+
+ODUS, abbr. of "On Demand Unserialization and Serialization", is a project
+inspired by Igbinary (https://github.com/igbinary/igbinary).
+
+By building based on igbinary's data format and code, and introducing
+tech static string table and lazy-loading, ODUS has improved both data
+size comsumption and runtime performance.
+
+For data size, ODUS add a static string table on top of igbinary's dynamic
+string table feature. Static string table is a list of very frequent strings
+among all data for a particular case, and stays statical/consistent out of
+all data blob, thus greatly decrease the data size. Some tests show about 50%
+reduction compared to igbinary, i.e. 25% of the PHP native serializer.
+Specific number depends on the case.
+
+Runtime performance is vastly improved also in ODUS by its lazy-loading feature.
+Instead of unserializing the blob in one run as what PHP/igbinary do, ODUS
+returns a data wrapper instantly for unserialization, and unserialize part
+of the blob on demand. In most cases this approad works perfectly to save
+lots of CPU time, especially for cases only small part of the blob is touched
+for a particular read-write lifecycle. Some tests show ODUS comsumes about
+only 30% CPU compared to PHP/igbinary. Specific number depends on the case.
+
+
+Features
+--------
+
+- Best data size and runtime performance improvement.
+- ``__sleep`` & ``__wakeup``
+- Data portability between platforms (32/64bit, endianess)
+
+
+Implementation details
+----------------------
+
+Please refer to igbinary as background.
+ODUS's format is built based on igbinary's, with changes:
+
+1. Add a 'length' field for each object/array for lazy loading. While it must unserialize everything one by one for Php or igbinary, we can skip any irrelated things(with 'length') if it's not what we are searching. 
+
+The length itself is compressed also. It may occupy 1, 2 or 4 bytes, which is flaged though the first 2 bits of first byte:
+01: Len will occupy 1 byte;
+10: Len will occupy 2 bytes in total;
+11: Not used for now;
+00: Len will occupy 4 bytes in total. This is for compatibility with the old format (always be 4 bytes in ODUS 1.0.)
+
+2. Add more data type (in od_igbinary_type_e) to support static string table.
+
+
+How to use
+----------
+
+1. Add config for ODUS into your php.ini or as a independent file
+(/etc/php.d/odus.ini), something like:
+
+; Enable odus extension module
+extension=odus.so
+odus.remove_default=0
+odus.reduce_fatals=1
+odus.throw_exceptions=1
+odus.format_version=2
+odus.force_release_memory=0
+odus.static_strings_file=/var/www/releases/current/game/odus/static_strings.ini
+
+2. If you want to utilize the static string feature (recommanded), following
+instruction below to generate static string table for your case, and put it
+where configed in your settings.
+
+3. In your php code replace serialize and unserialize function calls
+with ``od_serialize`` and ``new ODWrapper``.
+
+4. You've done! Enjoy.
+
+
+Installing
+----------
+
+Note:
+Sometimes phpize must be substituted with phpize5. In such cases the following
+option must be given to configure script: "--with-php-config=.../php-config5" 
+
+1. phpize
+
+2. ./configure
+
+3. make
+4. ( make test )
+5. make install
+6. odus.so is installed to the default extension directory
+
+
+Generate static string table
+----------------------------
+
+Static string table is a static/consistent list of strings outside of all
+data blob. Each string in serialized blob will be converted to a integer to refer
+to the entry of table if there's one. The data size get decreased greatly by
+this way.
+
+To generate the static string table:
+1. Write code to extract all strings(class name, property name, string as
+value) and count their using frequency.
+See sample code in generate_static_strings_sample.php
+2. Sort all string prioritized by length * frequency.
+
+
+Limitation
+----------
+
+1. Root object must be object, other primitive types don't play with ODUS for now, including string and array
+2. Compatible with PHP 5.2.10 for now, need porting it to other version.
+
+
+Unsupported Cases
+-----------------
+
+1. Object reference. It will leads to fatal error on serialization. e.g. something like O:1:"A":2:{s:2:"v1";s:3:"val";s:2:"v2";R:2;}
+2. Cyclic reference. If you get any cyclic reference, break it before serialization.
+3. Class-defined serialize/unserialize method. A class-defined serialize/unserialize method doesn't play well with ODUS's lazy loading, so we just disallow it for now.
+4. Object clone. ODWrapper doesn't work as native object. If you really want clone, do:
+<?php
+$obj = od_unserialize($od_obj);
+$new_obj = clone $obj;
+
+

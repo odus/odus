@@ -1,6 +1,11 @@
 /*
- *
- */
+  +----------------------------------------------------------------------+
+  | See COPYING file for further copyright information                   |
+  +----------------------------------------------------------------------+
+  | Author: Pai Deng <pdeng@zynga.com>                                   |
+  | See CREDITS for contributors                                         |
+  +----------------------------------------------------------------------+
+*/
 
 #ifndef PHP_ODWRAPPER_H
 #define PHP_ODWRAPPER_H
@@ -31,10 +36,10 @@
 
 
 typedef struct {
-	// XXX: the zend_object member must be the first one member !!!
+	// The zend_object member must be the first one member, for pointer cast between the two.
 	zend_object zo;
 
-	//extra wrapper members
+	// Extra wrapper members
 	// the serialized or semi-serialized data
 	od_igbinary_unserialize_data igsd;
 

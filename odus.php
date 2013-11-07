@@ -1,5 +1,14 @@
 <?php
 
+/*
+  +----------------------------------------------------------------------+
+  | See COPYING file for further copyright information                   |
+  +----------------------------------------------------------------------+
+  | Author: Pai Deng <pdeng@zynga.com>                                   |
+  | See CREDITS for contributors                                         |
+  +----------------------------------------------------------------------+
+*/
+
 function load() {
 	$br = (php_sapi_name() == "cli")? "":"<br>";
 

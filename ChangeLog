@@ -1,3 +1,21 @@
+* Pai Deng <pdeng@zynga.com>
+  2.0.3
+- Fix bugs.
+* Pai Deng <pdeng@zynga.com>
+  2.0.2
+- Fix bug on od_format_match.
+* Pai Deng <pdeng@zynga.com>
+  2.0.1
+- Enable string compact, compress value length.
+* Xiaogang Duan <xduan@zynga.com>
+  1.0.13
+- Add function od_refresh_odwrapper to support refresh ODWrapper object. Add function od_getobjectkeys_without_classname to get all the keys of ODWrapper instead of get_object_vars function.
+* Sahn Lam <sahn@zynga.com>
+  1.0.12
+- Fix a bug in there that would get triggered if the property being accessed had not been unserialized and if the object being accessed had a __get() function defined. In this case, it did not unserialize the property from the OD serialized string, and just returned a null zval. This has since been fixed.
+* Sahn Lam <sahn@zynga.com>
+  1.0.11
+- Fixed segfault caused by circular references
 * Thu Nov 14 2012 Steven Chow<schow@zynga.com> (Author), Huiqiang Liu<h.liu@zynga.com> (Commiter)
   version 1.0.10
 - Consider these options when a field is reference of another one with primitive value

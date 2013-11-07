@@ -1,10 +1,12 @@
 /*
   +----------------------------------------------------------------------+
   | See COPYING file for further copyright information                   |
-  +----------------------------------------------------------------------+ 
-  | Author: Oleg Grenrus <oleg.grenrus@dynamoid.com>                     |
+  +----------------------------------------------------------------------+
+  | Copied from igbinary and modified.                                   |
+  | igbinary author: Oleg Grenrus <oleg.grenrus@dynamoid.com>            |
+  | ODUS author: Pai Deng <pdeng@zynga.com>                              |
   | See CREDITS for contributors                                         |
-  +----------------------------------------------------------------------+ 
+  +----------------------------------------------------------------------+
 */
 
 #ifdef HAVE_CONFIG_H
@@ -131,21 +133,30 @@ inline int od_igbinary_init(TSRMLS_D) {
 	int res = 0;
 
 	do {
-		od_static_strings_count = 0;
-
-		if (!file || !file[0]) {
-			debug("od_igbinary_init: static strings file is empty, use default one.");
-			file = OD_IGBINARY_DEFAULT_STATIC_STRINGS_FILE;
-		}
-
-		fp = fopen(file, "r");
-
-		if (!fp) {
-			debug("od_igbinary_init: failed to open static string file, ignore.");
+		if (hash_si_init(&od_static_strings_hash, 16) != 0) {
 			res = -1;
 			break;
 		}
 
+		if (file && file[0]) {
+			fp = fopen(file, "r");
+			if (!fp) {
+				debug("od_igbinary_init: failed to open configed static string file, exit.");
+				res = -1;
+				break;
+			}
+		} else {
+			debug("od_igbinary_init: no config for static strings file, try with default one.");
+			file = OD_IGBINARY_DEFAULT_STATIC_STRINGS_FILE;
+			fp = fopen(file, "r");
+			if (!fp) {
+				debug("od_igbinary_init: failed to open default static string file, just ignore. ODUS will work with an empty static string table.");
+				res = 0;
+				break;
+			}
+		}
+
+		od_static_strings_count = 0;
 		while (fgets(buf, buf_len, fp) != NULL) {
 			od_igbinary_trim_string(buf);
 
@@ -182,21 +193,25 @@ inline int od_igbinary_init(TSRMLS_D) {
 				i++;
 			}
 		}
+		if (res != 0) break;
+
+		for (i = 0; i < od_static_strings_count; i++) {
+			if (hash_si_insert(&od_static_strings_hash, od_static_strings[i].key, od_static_strings[i].len, i) != 0) {
+				res = -1;
+				break;
+			}
+		}
 	} while (0);
-	
 
 	if (fp) {
 		fclose (fp);
 	}
 
-	hash_si_init(&od_static_strings_hash, 16);
-	if (res == 0) {
-		for (i = 0; i < od_static_strings_count; i++) {
-			hash_si_insert(&od_static_strings_hash, od_static_strings[i].key, od_static_strings[i].len, i);
-		}
+	if (res != 0) {
+		hash_si_deinit(&od_static_strings_hash);
 	}
 
-	return 0;
+	return res;
 }
 
 inline int od_igbinary_shutdown(TSRMLS_D) {
@@ -325,7 +340,6 @@ inline int od_igbinary_serialize_data_init(od_igbinary_serialize_data *igsd, boo
 
 	igsd->buffer = NULL;
 	igsd->buffer_size = 0;
-	//igsd->buffer_capacity = 32;
 	igsd->buffer_capacity = OD_RESERVED_BUFFER_LEN;
 
 	igsd->buffer = (uint8_t *) emalloc(igsd->buffer_capacity);
@@ -335,8 +349,12 @@ inline int od_igbinary_serialize_data_init(od_igbinary_serialize_data *igsd, boo
 
 	igsd->scalar = scalar;
 	if (!igsd->scalar) {
-		hash_si_init(&igsd->strings, 16);
-		hash_si_init(&igsd->objects, 16);
+		if (hash_si_init(&igsd->strings, 16) != 0) {
+			return 1;
+		}
+		if (hash_si_init(&igsd->objects, 16) != 0) {
+			return 1;
+		}
 	}
 
 	if (format_version == OD_IGBINARY_FORMAT_VERSION_02) {
