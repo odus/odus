@@ -32,21 +32,27 @@ Features
 - Data portability between platforms (32/64bit, endianess)
 
 
-Implementation details
-----------------------
+Plan
+--------
+- Add support for PHP versions other than 5.2.10
+- Improve to deduct un-supported cases.
 
-Please refer to igbinary as background.
-ODUS's format is built based on igbinary's, with changes:
 
-1. Add a 'length' field for each object/array for lazy loading. While it must unserialize everything one by one for Php or igbinary, we can skip any irrelated things(with 'length') if it's not what we are searching. 
+Installing
+----------
 
-The length itself is compressed also. It may occupy 1, 2 or 4 bytes, which is flaged though the first 2 bits of first byte:
-01: Len will occupy 1 byte;
-10: Len will occupy 2 bytes in total;
-11: Not used for now;
-00: Len will occupy 4 bytes in total. This is for compatibility with the old format (always be 4 bytes in ODUS 1.0.)
+Note:
+Sometimes phpize must be substituted with phpize5. In such cases the following
+option must be given to configure script: "--with-php-config=.../php-config5" 
 
-2. Add more data type (in od_igbinary_type_e) to support static string table.
+1. phpize
+
+2. ./configure
+
+3. make
+4. ( make test )
+5. make install
+6. odus.so is installed to the default extension directory
 
 
 How to use
@@ -74,21 +80,21 @@ with ``od_serialize`` and ``new ODWrapper``.
 4. You've done! Enjoy.
 
 
-Installing
-----------
+Implementation details
+----------------------
 
-Note:
-Sometimes phpize must be substituted with phpize5. In such cases the following
-option must be given to configure script: "--with-php-config=.../php-config5" 
+Please refer to igbinary as background.
+ODUS's format is built based on igbinary's, with changes:
 
-1. phpize
+1. Add a 'length' field for each object/array for lazy loading. While it must unserialize everything one by one for Php or igbinary, we can skip any irrelated things(with 'length') if it's not what we are searching. 
 
-2. ./configure
+The length itself is compressed also. It may occupy 1, 2 or 4 bytes, which is flaged though the first 2 bits of first byte:
+01: Len will occupy 1 byte;
+10: Len will occupy 2 bytes in total;
+11: Not used for now;
+00: Len will occupy 4 bytes in total. This is for compatibility with the old format (always be 4 bytes in ODUS 1.0.)
 
-3. make
-4. ( make test )
-5. make install
-6. odus.so is installed to the default extension directory
+2. Add more data type (in od_igbinary_type_e) to support static string table.
 
 
 Generate static string table
