@@ -2,7 +2,9 @@ ODUS
 ========
 
 ODUS, abbr. of "On Demand Unserialization and Serialization", is a project
-inspired by Igbinary (https://github.com/igbinary/igbinary).
+inspired by Igbinary (https://github.com/igbinary/igbinary), to optimaze
+serialization/un-serialization for php objects. It was originally writen
+for Zynga Inc's online game (CityVille).
 
 By building based on igbinary's data format and code, and introducing
 tech static string table and lazy-loading, ODUS has improved both data
